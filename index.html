@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Python Platform 算法学习平台</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <button class="brand brand-button" id="home-button" type="button">
+        <div class="brand-mark">P</div>
+        <div>
+          <h1>Python Platform</h1>
+          <p>算法演示学习平台</p>
+        </div>
+      </button>
+
+      <section class="sidebar-section">
+        <div class="sidebar-title">学习路径</div>
+        <div class="progress-card">
+          <div class="progress-copy">
+            <strong>当前主线</strong>
+            <span>面试导向 · 系统课程</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-bar-fill" id="course-progress"></div>
+          </div>
+          <div class="progress-text" id="course-progress-text">1 / 3 章节已开始</div>
+        </div>
+      </section>
+
+      <section class="sidebar-section">
+        <div class="sidebar-title">课程目录</div>
+        <nav class="lesson-list" id="lesson-list"></nav>
+      </section>
+
+      <section class="sidebar-section">
+        <div class="sidebar-title">学习档案</div>
+        <div class="tips" id="learning-profile"></div>
+      </section>
+
+      <section class="sidebar-section">
+        <div class="sidebar-title">错题本</div>
+        <div class="tips" id="review-panel"></div>
+      </section>
+
+      <section class="sidebar-section tips">
+        <div class="sidebar-title">学习方式</div>
+        <ul>
+          <li>先讲背景、来源和痛点</li>
+          <li>再讲核心思想和实现过程</li>
+          <li>经典题型配暴力与优化对比</li>
+          <li>每章都有动态演示和检测</li>
+        </ul>
+      </section>
+
+      <section class="sidebar-section tips">
+        <div class="sidebar-title">知识体系</div>
+        <ul>
+          <li>基础：复杂度、数组、链表、栈、队列</li>
+          <li>查找：哈希表、二分查找、双指针</li>
+          <li>进阶：树、堆、图、滑动窗口、回溯、动态规划</li>
+          <li>专题：贪心、前缀和/差分、单调结构、并查集、Trie</li>
+          <li>目标：会讲、会写、会分析、会应用</li>
+        </ul>
+      </section>
+
+      <section class="sidebar-section tips">
+        <div class="sidebar-title">学习顺序</div>
+        <ul>
+          <li>第 1 阶段：复杂度 -> 数组 -> 链表 -> 栈队列</li>
+          <li>第 2 阶段：哈希 -> 二分 -> 双指针 -> 滑动窗口</li>
+          <li>第 3 阶段：树 -> 堆 -> 图搜索</li>
+          <li>第 4 阶段：回溯 -> 动态规划</li>
+          <li>第 5 阶段：贪心 -> 前缀和/差分 -> 单调结构 -> 并查集/Trie</li>
+        </ul>
+      </section>
+    </aside>
+
+    <main class="main">
+      <header class="hero">
+        <div class="hero-copy">
+          <span class="eyebrow" id="hero-path">面试导向系统课</span>
+          <h2 id="hero-title">第一章：复杂度分析</h2>
+          <p id="hero-summary">
+            学会判断一个解法到底是“能做出来”还是“值得在真实场景里使用”，建立时间复杂度与空间复杂度的核心直觉。
+          </p>
+          <div class="hero-actions">
+            <button class="primary-button" id="start-lesson-btn">开始本课</button>
+            <button class="ghost-button" data-action="focus-visual">先看演示</button>
+          </div>
+        </div>
+        <div class="hero-panel">
+          <div class="hero-panel-header">
+            <span>课堂模式</span>
+            <span>结构化 + 可视化 + 互动反馈</span>
+          </div>
+          <div class="hero-metrics">
+            <article>
+              <strong id="metric-duration">20 min</strong>
+              <span>建议时长</span>
+            </article>
+            <article>
+              <strong id="metric-difficulty">基础</strong>
+              <span>难度</span>
+            </article>
+            <article>
+              <strong id="metric-outcome">复杂度直觉</strong>
+              <span>收获</span>
+            </article>
+          </div>
+        </div>
+      </header>
+
+      <section class="card dashboard-card">
+        <div class="card-header compact">
+          <div>
+            <h3>学习导航</h3>
+            <p>先知道自己处于哪一阶段，再决定是继续主线、回顾错题，还是补模板。</p>
+          </div>
+        </div>
+        <div class="summary-grid">
+          <section class="summary-panel">
+            <div class="section-label">当前阶段</div>
+            <div id="roadmap-stage"></div>
+          </section>
+          <section class="summary-panel">
+            <div class="section-label">下一步建议</div>
+            <div id="roadmap-next"></div>
+          </section>
+          <section class="summary-panel span-2">
+            <div class="section-label">复习建议</div>
+            <div id="roadmap-review"></div>
+          </section>
+        </div>
+      </section>
+
+      <div class="content-grid">
+        <section class="lesson-column">
+          <article class="card lesson-card">
+            <div class="card-header">
+              <span class="section-index" id="lesson-index">01</span>
+              <div>
+                <h3 id="lesson-title">第一章：复杂度分析</h3>
+                <p id="lesson-subtitle">先建立判断算法优劣的底层标尺。</p>
+              </div>
+            </div>
+            <div class="lesson-sections" id="lesson-sections"></div>
+          </article>
+
+          <article class="card examples-card">
+            <div class="card-header compact">
+              <div>
+                <h3>经典例题与代码对比</h3>
+                <p>每章挑 3 到 5 道面试高频中低难度题，先看暴力，再看优化。</p>
+              </div>
+            </div>
+            <div class="example-tabs" id="example-tabs"></div>
+            <div id="example-detail"></div>
+          </article>
+
+          <article class="card" id="visual-card">
+            <div class="card-header compact">
+              <div>
+                <h3 id="visual-title">复杂度增长可视化</h3>
+                <p id="visual-subtitle">拖动数据规模，感受 O(1)、O(log n)、O(n)、O(n²) 的增长差异。</p>
+              </div>
+            </div>
+            <div id="visual-content"></div>
+          </article>
+
+          <article class="card code-card">
+            <div class="card-header compact">
+              <div>
+                <h3 id="code-title">代码拆解</h3>
+                <p id="code-subtitle">示例代码都带详细注释，并强调从暴力到优化的推导过程。</p>
+              </div>
+            </div>
+            <div class="code-switcher" id="code-switcher"></div>
+            <pre><code id="code-block"></code></pre>
+            <div class="code-explanation" id="code-explanation"></div>
+          </article>
+
+          <article class="card summary-card">
+            <div class="card-header compact">
+              <div>
+                <h3>算法思路总结与代码模板</h3>
+                <p>把“怎么想”“怎么写”“什么时候用”整理成可以复用的答题模板。</p>
+              </div>
+            </div>
+            <div class="summary-grid">
+              <section class="summary-panel">
+                <div class="section-label">思路拆解</div>
+                <div id="implementation-list"></div>
+              </section>
+              <section class="summary-panel">
+                <div class="section-label">复杂度分析</div>
+                <div id="complexity-list"></div>
+              </section>
+              <section class="summary-panel span-2">
+                <div class="section-label">解题总结</div>
+                <div id="thinking-list"></div>
+              </section>
+              <section class="summary-panel span-2">
+                <div class="section-label">代码模板</div>
+                <pre><code id="template-code"></code></pre>
+                <div class="key-line" id="chapter-summary"></div>
+              </section>
+            </div>
+          </article>
+
+          <article class="card quiz-card">
+            <div class="card-header compact">
+              <div>
+                <h3>实战练习</h3>
+                <p>像力扣一样直接写代码、跑样例、看反馈，把理解变成真正能提交的解法。</p>
+              </div>
+            </div>
+            <div id="practice-container"></div>
+          </article>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
