@@ -3377,6 +3377,8 @@ const state = {
   currentLessonId: lessons[0].id,
   activeExampleIndex: 0,
   activeApproachId: lessons[0].examples[0].approaches[0].id,
+  activePracticeIdByLesson: {},
+  selectedSubmissionId: null,
   historyFilter: "all",
   visualTimer: null,
   visualState: {},
@@ -3412,6 +3414,7 @@ const refs = {
   submissionSummary: document.getElementById("submission-summary"),
   submissionFilter: document.getElementById("submission-filter"),
   submissionPage: document.getElementById("submission-page"),
+  submissionDetail: document.getElementById("submission-detail"),
   lessonIndex: document.getElementById("lesson-index"),
   lessonTitle: document.getElementById("lesson-title"),
   lessonSubtitle: document.getElementById("lesson-subtitle"),
@@ -3575,6 +3578,7 @@ function loadLearningState() {
       submissionHistory: parsed.learning?.submissionHistory || []
     };
     state.practiceCode = parsed.practiceCode || {};
+    state.activePracticeIdByLesson = parsed.activePracticeIdByLesson || {};
     state.currentLessonId = parsed.currentLessonId || state.learning.lastLessonId || state.currentLessonId;
   } catch (error) {
     console.warn("读取学习进度失败，将使用默认状态。", error);
@@ -3584,6 +3588,7 @@ function loadLearningState() {
 function saveLearningState() {
   const payload = {
     currentLessonId: state.currentLessonId,
+    activePracticeIdByLesson: state.activePracticeIdByLesson,
     practiceCode: state.practiceCode,
     learning: state.learning
   };
@@ -3652,6 +3657,8 @@ function resetLearningProgress() {
     submissionHistory: [],
     lastLessonId: lessons[0].id
   };
+  state.activePracticeIdByLesson = {};
+  state.selectedSubmissionId = null;
   state.practiceCode = {};
   state.practiceResult = {};
   state.currentLessonId = lessons[0].id;
@@ -4039,6 +4046,106 @@ const lessonPractices = {
   }
 };
 
+const extraPracticeSets = {
+  complexity: [
+    {
+      id: "find-target-index",
+      title: "进阶练习：有序数组中查找目标下标",
+      difficulty: "简单",
+      prompt: "实现 `find_target_index(nums, target)`，在升序数组中返回 `target` 的下标，不存在返回 `-1`。",
+      signature: "def find_target_index(nums, target):",
+      starterCode: `def find_target_index(nums, target):
+    # TODO: 用有序数组的特征优化查找
+    pass
+`,
+      hints: ["先写线性查找，再思考“有序”意味着什么。", "如果每次都能排除一半区间，就能把复杂度降到 O(log n)。"],
+      tests: [
+        { input: [[1, 3, 5, 7, 9], 7], expected: 3 },
+        { input: [[2, 4, 6, 8], 5], expected: -1 }
+      ],
+      hiddenTests: [{ input: [[1], 1], expected: 0 }],
+      functionName: "find_target_index"
+    }
+  ],
+  "binary-search": [
+    {
+      id: "first-ge",
+      title: "进阶练习：寻找第一个大于等于目标值的位置",
+      difficulty: "简单",
+      prompt: "实现 `first_ge(nums, target)`，返回数组中第一个大于等于 `target` 的下标，不存在返回 `len(nums)`。",
+      signature: "def first_ge(nums, target):",
+      starterCode: `def first_ge(nums, target):
+    # TODO: 使用二分找到左边界
+    pass
+`,
+      hints: ["这题本质上是左边界二分。", "即使没有命中 target，也要记录候选答案。"],
+      tests: [
+        { input: [[1, 2, 4, 4, 5], 4], expected: 2 },
+        { input: [[1, 3, 5], 6], expected: 3 }
+      ],
+      hiddenTests: [{ input: [[2, 2, 2], 2], expected: 0 }],
+      functionName: "first_ge"
+    }
+  ],
+  "graph-bfs-dfs": [
+    {
+      id: "shortest-path-grid",
+      title: "进阶练习：网格最短步数",
+      difficulty: "中等",
+      prompt: "实现 `min_steps(grid)`，从左上角走到右下角，0 表示可走，1 表示障碍，返回最短步数，不可达返回 -1。",
+      signature: "def min_steps(grid):",
+      starterCode: `from collections import deque
+
+def min_steps(grid):
+    # TODO: 使用 BFS 按层扩散
+    pass
+`,
+      hints: ["最短步数看到无权图，优先想到 BFS。", "队列里可以同时记录位置和当前步数。"],
+      tests: [
+        { input: [[[[0, 0], [1, 0]]]], expected: 2 },
+        { input: [[[[0, 1], [1, 0]]]], expected: -1 }
+      ],
+      hiddenTests: [{ input: [[[[0, 0, 0], [1, 1, 0], [0, 0, 0]]]], expected: 4 }],
+      functionName: "min_steps"
+    }
+  ],
+  "dynamic-programming": [
+    {
+      id: "climb-stairs",
+      title: "进阶练习：爬楼梯",
+      difficulty: "简单",
+      prompt: "实现 `climb_stairs(n)`，每次可以爬 1 或 2 阶，返回到达第 `n` 阶的方法数。",
+      signature: "def climb_stairs(n):",
+      starterCode: `def climb_stairs(n):
+    # TODO: 写出状态定义和状态转移
+    pass
+`,
+      hints: ["dp[i] 表示到达第 i 阶的方法数。", "想清楚 dp[i] 和更小状态的关系。"],
+      tests: [
+        { input: [2], expected: 2 },
+        { input: [5], expected: 8 }
+      ],
+      hiddenTests: [{ input: [1], expected: 1 }],
+      functionName: "climb_stairs"
+    }
+  ]
+};
+
+function getPracticeSet(lessonId) {
+  const base = lessonPractices[lessonId];
+  const normalized = (Array.isArray(base) ? base : [{ id: "core", ...base }]).map((practice) => ({
+    hiddenTests: [],
+    ...practice
+  }));
+  return [...normalized, ...(extraPracticeSets[lessonId] || [])];
+}
+
+function getActivePractice(lessonId = state.currentLessonId) {
+  const set = getPracticeSet(lessonId);
+  const activeId = state.activePracticeIdByLesson[lessonId] || set[0].id;
+  return set.find((item) => item.id === activeId) || set[0];
+}
+
 function getCurrentLesson() {
   return lessons.find((lesson) => lesson.id === state.currentLessonId);
 }
@@ -4089,6 +4196,10 @@ function setLesson(lessonId) {
   state.learning.lastLessonId = lessonId;
   state.activeExampleIndex = 0;
   state.activeApproachId = getCurrentLesson().examples[0].approaches[0].id;
+  const practiceSet = getPracticeSet(lessonId);
+  if (!state.activePracticeIdByLesson[lessonId] && practiceSet.length) {
+    state.activePracticeIdByLesson[lessonId] = practiceSet[0].id;
+  }
   resetVisualState();
   saveLearningState();
   render();
@@ -4216,6 +4327,7 @@ function renderSubmissionPage() {
   const records = getFilteredSubmissionHistory();
   if (!records.length) {
     refs.submissionPage.innerHTML = "<p>当前筛选条件下还没有提交记录。先完成一章练习，记录页就会自动积累。</p>";
+    refs.submissionDetail.innerHTML = "<p>提交详情会在你提交练习后显示，这里会保留题目、结果、反馈和当时的代码快照。</p>";
     return;
   }
 
@@ -4225,10 +4337,12 @@ function renderSubmissionPage() {
       const lessonId = lesson?.id || "";
       return `<article class="history-card">
         <strong>${item.lessonTitle}</strong>
+        <p>${item.practiceTitle || "章节核心题"}</p>
         <span class="history-status ${item.passed ? "pass" : "fail"}">${item.passed ? "通过" : "未通过"}</span>
         <p>${item.message}</p>
         <span class="history-meta">${item.timestamp}</span>
         <div class="history-actions">
+          <button class="ghost-button small history-detail-btn" data-submission-id="${item.id}" type="button">查看详情</button>
           <button class="ghost-button small history-open-btn" data-lesson-id="${lessonId}" type="button">打开章节</button>
           ${item.passed ? "" : `<button class="ghost-button small history-review-btn" data-lesson-id="${lessonId}" type="button">进入二刷</button>`}
         </div>
@@ -4236,6 +4350,12 @@ function renderSubmissionPage() {
     })
     .join("")}</div>`;
 
+  refs.submissionPage.querySelectorAll(".history-detail-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedSubmissionId = button.dataset.submissionId;
+      renderSubmissionDetail();
+    });
+  });
   refs.submissionPage.querySelectorAll(".history-open-btn").forEach((button) => {
     button.addEventListener("click", () => {
       const lessonId = button.dataset.lessonId;
@@ -4245,6 +4365,33 @@ function renderSubmissionPage() {
   refs.submissionPage.querySelectorAll(".history-review-btn").forEach((button) => {
     button.addEventListener("click", () => focusLessonPractice(button.dataset.lessonId));
   });
+  if (!state.selectedSubmissionId && records.length) {
+    state.selectedSubmissionId = records[0].id;
+  }
+  renderSubmissionDetail();
+}
+
+function renderSubmissionDetail() {
+  const fallback = "<p>点击左侧某次提交的“查看详情”，这里会展示那次提交的完整反馈和代码快照。</p>";
+  if (!state.selectedSubmissionId) {
+    refs.submissionDetail.innerHTML = fallback;
+    return;
+  }
+  const submission = state.learning.submissionHistory.find((item) => item.id === state.selectedSubmissionId);
+  if (!submission) {
+    refs.submissionDetail.innerHTML = fallback;
+    return;
+  }
+  refs.submissionDetail.innerHTML = `
+    <div class="submission-detail-card">
+      <strong>${submission.lessonTitle} · ${submission.practiceTitle || "章节核心题"}</strong>
+      <span class="history-status ${submission.passed ? "pass" : "fail"}">${submission.passed ? "通过" : "未通过"}</span>
+      <p>${submission.message}</p>
+      <div class="history-meta">${submission.timestamp}</div>
+      <p>公开样例：${submission.visibleCount ?? 0} 个，隐藏测试：${submission.hiddenCount ?? 0} 个</p>
+      <pre><code>${escapeHtml(submission.codeSnapshot || "# 本次提交没有保留代码快照")}</code></pre>
+    </div>
+  `;
 }
 
 function focusLessonPractice(lessonId) {
@@ -4372,12 +4519,17 @@ function renderQuiz() {
 
 function renderPractice() {
   const lesson = getCurrentLesson();
-  const practice = lessonPractices[lesson.id];
-  const reviewInfo = state.learning.wrongLessons[lesson.id];
-  if (!state.practiceCode[lesson.id]) {
-    state.practiceCode[lesson.id] = practice.starterCode;
+  const practiceSet = getPracticeSet(lesson.id);
+  if (!state.activePracticeIdByLesson[lesson.id]) {
+    state.activePracticeIdByLesson[lesson.id] = practiceSet[0].id;
   }
-  const result = state.practiceResult[lesson.id];
+  const practice = getActivePractice(lesson.id);
+  const practiceKey = `${lesson.id}::${practice.id}`;
+  const reviewInfo = state.learning.wrongLessons[lesson.id];
+  if (!state.practiceCode[practiceKey]) {
+    state.practiceCode[practiceKey] = practice.starterCode;
+  }
+  const result = state.practiceResult[practiceKey];
   refs.practiceContainer.innerHTML = `
     <div class="practice-panel">
       ${
@@ -4390,6 +4542,17 @@ function renderPractice() {
           : ""
       }
       <div class="practice-card">
+        <div class="section-label">题目列表</div>
+        <div class="practice-problem-tabs">
+          ${practiceSet
+            .map(
+              (item, index) =>
+                `<button class="tab-button${item.id === practice.id ? " active" : ""}" type="button" data-practice-id="${item.id}">题目 ${index + 1} · ${item.title}</button>`
+            )
+            .join("")}
+        </div>
+      </div>
+      <div class="practice-card">
         <h4>${practice.title}</h4>
         <div class="practice-meta">
           <span class="badge">${practice.difficulty}</span>
@@ -4399,30 +4562,35 @@ function renderPractice() {
         <p><strong>题目：</strong>${practice.prompt}</p>
       </div>
 
-      <div class="practice-card">
-        <div class="section-label">测试样例</div>
-        <ul class="testcase-list">
-          ${practice.tests
-            .map(
-              (test, index) =>
-                `<li>样例 ${index + 1}：输入 = ${escapeHtml(JSON.stringify(test.input))}，期望输出 = ${escapeHtml(
-                  JSON.stringify(test.expected)
-                )}</li>`
-            )
-            .join("")}
-        </ul>
-      </div>
-
-      <div class="practice-card">
-        <div class="section-label">提示</div>
-        <ul class="practice-hints">
-          ${practice.hints.map((hint) => `<li>${hint}</li>`).join("")}
-        </ul>
+      <div class="practice-info-grid">
+        <div class="practice-detail-card">
+          <div class="section-label">公开测试样例</div>
+          <ul class="testcase-list">
+            ${practice.tests
+              .map(
+                (test, index) =>
+                  `<li>样例 ${index + 1}：输入 = ${escapeHtml(JSON.stringify(test.input))}，期望输出 = ${escapeHtml(
+                    JSON.stringify(test.expected)
+                  )}</li>`
+              )
+              .join("")}
+          </ul>
+        </div>
+        <div class="practice-detail-card">
+          <div class="section-label">提示与隐藏测试</div>
+          <ul class="practice-hints">
+            ${practice.hints.map((hint) => `<li>${hint}</li>`).join("")}
+          </ul>
+          <div class="hidden-tests-note" style="margin-top:12px;">
+            本题共有 <strong>${practice.hiddenTests?.length || 0}</strong> 个隐藏测试，不会展示具体输入。
+            它们通常会检查边界条件、极端输入、重复值、空结构和特殊顺序。
+          </div>
+        </div>
       </div>
 
       <div class="practice-card">
         <label class="editor-label" for="practice-editor">在下面写 Python 代码：</label>
-        <textarea id="practice-editor" class="practice-editor" spellcheck="false">${escapeHtml(state.practiceCode[lesson.id])}</textarea>
+        <textarea id="practice-editor" class="practice-editor" spellcheck="false">${escapeHtml(state.practiceCode[practiceKey])}</textarea>
         <div class="practice-actions">
           <button class="primary-button" id="run-practice-btn" type="button">运行测试</button>
           <button class="ghost-button" id="reset-practice-btn" type="button">重置模板</button>
@@ -4441,14 +4609,21 @@ function renderPractice() {
     </div>
   `;
 
+  refs.practiceContainer.querySelectorAll("[data-practice-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activePracticeIdByLesson[lesson.id] = button.dataset.practiceId;
+      saveLearningState();
+      renderPractice();
+    });
+  });
   document.getElementById("practice-editor").addEventListener("input", (event) => {
-    state.practiceCode[lesson.id] = event.target.value;
+    state.practiceCode[practiceKey] = event.target.value;
     saveLearningState();
   });
-  document.getElementById("run-practice-btn").addEventListener("click", () => runPractice(lesson.id));
+  document.getElementById("run-practice-btn").addEventListener("click", () => runPractice(lesson.id, practice.id));
   document.getElementById("reset-practice-btn").addEventListener("click", () => {
-    state.practiceCode[lesson.id] = practice.starterCode;
-    state.practiceResult[lesson.id] = null;
+    state.practiceCode[practiceKey] = practice.starterCode;
+    state.practiceResult[practiceKey] = null;
     renderPractice();
   });
   document.getElementById("next-lesson-btn").addEventListener("click", () => {
@@ -4458,10 +4633,12 @@ function renderPractice() {
   });
 }
 
-async function runPractice(lessonId) {
-  const practice = lessonPractices[lessonId];
-  const code = state.practiceCode[lessonId];
+async function runPractice(lessonId, practiceId) {
+  const practice = getPracticeSet(lessonId).find((item) => item.id === practiceId) || getActivePractice(lessonId);
+  const practiceKey = `${lessonId}::${practice.id}`;
+  const code = state.practiceCode[practiceKey];
   const lesson = lessons.find((item) => item.id === lessonId);
+  const allTests = [...practice.tests, ...(practice.hiddenTests || []).map((test) => ({ ...test, hidden: true }))];
   try {
     const response = await fetch("/run-practice", {
       method: "POST",
@@ -4469,42 +4646,54 @@ async function runPractice(lessonId) {
       body: JSON.stringify({
         code,
         functionName: practice.functionName,
-        tests: practice.tests
+        tests: allTests
       })
     });
     const result = await response.json();
-    state.practiceResult[lessonId] = {
+    state.practiceResult[practiceKey] = {
       passed: result.ok,
-      message: result.message
+      message: result.message,
+      visibleCount: result.visibleCount,
+      hiddenCount: result.hiddenCount
     };
   } catch (error) {
-    state.practiceResult[lessonId] = {
+    state.practiceResult[practiceKey] = {
       passed: false,
       message: "当前页面没有通过本地服务启动，所以无法执行 Python 测试。请使用“启动PythonPath平台.bat”打开平台。"
     };
   }
   state.learning.attemptsByLesson[lessonId] = (state.learning.attemptsByLesson[lessonId] || 0) + 1;
+  const submissionId = `submission-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   state.learning.submissionHistory.unshift({
+    id: submissionId,
     lessonId,
     lessonTitle: lesson?.title || lessonId,
-    passed: state.practiceResult[lessonId].passed,
-    message: state.practiceResult[lessonId].message,
+    practiceId: practice.id,
+    practiceTitle: practice.title,
+    passed: state.practiceResult[practiceKey].passed,
+    message: state.practiceResult[practiceKey].message,
+    visibleCount: state.practiceResult[practiceKey].visibleCount ?? practice.tests.length,
+    hiddenCount: state.practiceResult[practiceKey].hiddenCount ?? (practice.hiddenTests?.length || 0),
+    codeSnapshot: code,
     timestamp: new Date().toLocaleString("zh-CN")
   });
   state.learning.submissionHistory = state.learning.submissionHistory.slice(0, 20);
+  state.selectedSubmissionId = submissionId;
 
-  if (state.practiceResult[lessonId].passed) {
+  if (state.practiceResult[practiceKey].passed) {
     state.learning.completedLessons[lessonId] = true;
     delete state.learning.wrongLessons[lessonId];
   } else {
     state.learning.wrongLessons[lessonId] = {
-      message: state.practiceResult[lessonId].message,
+      message: state.practiceResult[practiceKey].message,
       timestamp: new Date().toLocaleString("zh-CN")
     };
   }
   saveLearningState();
   renderPractice();
   renderLearningProfile();
+  renderSubmissionHistory();
+  renderSubmissionPage();
   renderRoadmap();
   renderLessonList();
 }
@@ -4839,14 +5028,12 @@ function renderArrayVisual() {
 function paintArraySnapshot() {
   const snapshots = getArraySnapshots(state.visualState.operation);
   const snapshot = snapshots[state.visualState.step];
-  document.getElementById("array-lane").innerHTML = snapshot.cells
-    .map((value, index) => {
-      const classes = ["slot"];
-      if (index === snapshot.active) classes.push("active");
-      if (snapshot.shifted.includes(index)) classes.push("shifted");
-      return `<div class="${classes.join(" ")}">${value}</div>`;
-    })
-    .join("");
+  document.getElementById("array-lane").innerHTML = svgArrayStageMarkup({
+    values: snapshot.cells,
+    activeIndices: [snapshot.active],
+    successIndices: snapshot.shifted,
+    extraNote: "数组的核心是连续存储，所以插入和删除经常伴随整体搬移。"
+  });
   document.getElementById("array-caption").textContent = snapshot.note;
 }
 
@@ -4864,7 +5051,7 @@ function playArrayVisual() {
       return;
     }
     paintArraySnapshot();
-  }, 1400);
+  }, 2100);
 }
 
 function getLinkedSteps() {
@@ -4897,14 +5084,23 @@ function renderLinkedVisual() {
 
 function paintLinkedStep() {
   const step = getLinkedSteps()[state.visualState.step];
-  document.getElementById("linked-lane").innerHTML = step.nodes
-    .map((node) => {
-      const classes = ["slot"];
-      if (node === step.active) classes.push("active");
-      if (node === step.removed) classes.push("shifted");
-      return `<div class="${classes.join(" ")}">${node}</div>`;
-    })
-    .join("");
+  const visibleNodes = step.nodes.map((node, index) => ({
+    id: `${node}-${index}`,
+    x: 110 + index * 130,
+    y: 110,
+    label: String(node)
+  }));
+  const edges = visibleNodes.slice(0, -1).map((node, index) => ({ from: node.id, to: visibleNodes[index + 1].id }));
+  document.getElementById("linked-lane").innerHTML =
+    svgNodeStageMarkup({
+      width: Math.max(720, visibleNodes.length * 130 + 80),
+      height: 220,
+      nodes: visibleNodes,
+      edges,
+      activeIds: visibleNodes.filter((node) => node.label === String(step.active)).map((node) => node.id),
+      successIds: visibleNodes.filter((node) => node.label === String(step.removed)).map((node) => node.id)
+    }) +
+    (step.removed !== null ? `<div class="svg-legend">被跳过的节点：${step.removed}。改的是前驱的 next，而不是“删除数组中的位置”。</div>` : `<div class="svg-legend">dummy 节点让删除头节点也能统一成“改前驱 next 指针”。</div>`);
   document.getElementById("linked-caption").textContent = step.note;
 }
 
@@ -4922,7 +5118,7 @@ function playLinkedVisual() {
       return;
     }
     paintLinkedStep();
-  }, 1400);
+  }, 2100);
 }
 
 function getStackQueueSteps(mode) {
@@ -4977,15 +5173,22 @@ function renderStackQueueVisual() {
 
 function paintStackQueueStep() {
   const step = getStackQueueSteps(state.visualState.mode)[state.visualState.step];
-  document.getElementById("sq-lane").innerHTML = step.items.length
-    ? step.items
-        .map((item) => {
-          const classes = ["slot"];
-          if (item === step.active) classes.push("active");
-          return `<div class="${classes.join(" ")}">${item}</div>`;
-        })
-        .join("")
-    : `<div class="slot">空</div>`;
+  const values = step.items.length ? step.items : ["空"];
+  const topLabels =
+    state.visualState.mode === "stack" && step.items.length
+      ? { [step.items.length - 1]: "top" }
+      : state.visualState.mode === "queue" && step.items.length
+        ? { 0: "front" }
+        : {};
+  const bottomLabels = state.visualState.mode === "queue" && step.items.length ? { [step.items.length - 1]: "rear" } : {};
+  const activeIndices = step.items.length ? step.items.map((item, index) => (item === step.active ? index : -1)).filter((index) => index >= 0) : [];
+  document.getElementById("sq-lane").innerHTML = svgArrayStageMarkup({
+    values,
+    activeIndices,
+    topLabels,
+    bottomLabels,
+    extraNote: state.visualState.mode === "stack" ? "栈从同一端进出，后进先出。" : "队列一端进、一端出，先进先出。"
+  });
   document.getElementById("sq-caption").textContent = step.note;
 }
 
@@ -5003,7 +5206,7 @@ function playStackQueueVisual() {
       return;
     }
     paintStackQueueStep();
-  }, 1400);
+  }, 2100);
 }
 
 function getBinarySteps() {
@@ -5038,15 +5241,16 @@ function renderBinaryVisual() {
 function paintBinaryStep() {
   const step = getBinarySteps()[state.visualState.step];
   const data = [3, 7, 11, 15, 19, 24, 31, 42, 57];
-  document.getElementById("binary-row").innerHTML = data
-    .map((value, index) => {
-      const classes = ["slot"];
-      if (index < step.left || index > step.right) classes.push("dim");
-      if (index === step.mid) classes.push("active");
-      if (step.found && index === step.mid) classes.push("target");
-      return `<div class="${classes.join(" ")}"><strong>${value}</strong><div>idx ${index}</div></div>`;
-    })
-    .join("");
+  document.getElementById("binary-row").innerHTML = svgArrayStageMarkup({
+    values: data,
+    activeIndices: [step.mid],
+    successIndices: step.found ? [step.mid] : [],
+    dimIndices: data.map((_, index) => index).filter((index) => index < step.left || index > step.right),
+    leftIndex: step.left,
+    rightIndex: step.right,
+    topLabels: { [step.left]: "left", [step.mid]: "mid", [step.right]: "right" },
+    extraNote: `当前比较值 = ${data[step.mid]}`
+  });
   document.getElementById("binary-caption").textContent = step.note;
 }
 
@@ -5064,7 +5268,7 @@ function playBinaryVisual() {
       return;
     }
     paintBinaryStep();
-  }, 1500);
+  }, 2100);
 }
 
 function getHashSteps() {
@@ -5103,18 +5307,13 @@ function paintHashStep() {
   step.seen.forEach((value) => buckets[value % bucketCount].push(value));
   const activeBucket = step.current === null ? null : step.current % bucketCount;
   const hitBucket = step.need === null ? null : step.need % bucketCount;
-  document.getElementById("hash-buckets").innerHTML = buckets
-    .map((items, index) => {
-      const classes = ["bucket"];
-      if (index === activeBucket) classes.push("active");
-      if (step.hit && index === hitBucket) classes.push("hit");
-      return `
-        <div class="${classes.join(" ")}">
-          <strong>bucket ${index}</strong>
-          <div class="bucket-items">${items.length ? items.map((item) => `<span>${item}</span>`).join("") : "<span>空</span>"}</div>
-        </div>`;
-    })
-    .join("");
+  const bucketValues = buckets.map((items, index) => `b${index}: ${items.length ? items.join("/") : "空"}`);
+  document.getElementById("hash-buckets").innerHTML = svgArrayStageMarkup({
+    values: bucketValues,
+    activeIndices: activeBucket === null ? [] : [activeBucket],
+    successIndices: step.hit && hitBucket !== null ? [hitBucket] : [],
+    extraNote: "桶内展示的是已经 seen 过的值。命中补数时，说明当前值可以和历史值组成答案。"
+  });
   document.getElementById("hash-seen").innerHTML =
     step.current === null ? "seen = {}" : `当前值 = <strong>${step.current}</strong>，需要补数 = <strong>${step.need}</strong>，seen = { ${step.seen.join(", ")} }`;
   document.getElementById("hash-caption").textContent = step.note;
@@ -5134,7 +5333,7 @@ function playHashVisual() {
       return;
     }
     paintHashStep();
-  }, 1500);
+  }, 2100);
 }
 
 function getTreeSteps(mode) {
@@ -5929,14 +6128,13 @@ function renderGreedyVisual() {
 
 function paintGreedyStep() {
   const step = getGreedySteps()[state.visualState.step];
-  document.getElementById("greedy-lane").innerHTML = step.values
-    .map((value, index) => {
-      const classes = ["slot"];
-      if (index === step.active) classes.push("active");
-      if (index <= step.reach) classes.push("target");
-      return `<div class="${classes.join(" ")}"><strong>${value}</strong><div>idx ${index}</div></div>`;
-    })
-    .join("");
+  document.getElementById("greedy-lane").innerHTML = svgArrayStageMarkup({
+    values: step.values,
+    activeIndices: [step.active],
+    successIndices: Array.from({ length: step.reach + 1 }, (_, index) => index),
+    topLabels: { [step.active]: "当前位置" },
+    extraNote: `当前最远可达 = ${step.reach}`
+  });
   document.getElementById("greedy-caption").textContent = step.note;
 }
 
@@ -5954,7 +6152,7 @@ function playGreedyVisual() {
       return;
     }
     paintGreedyStep();
-  }, 1500);
+  }, 2100);
 }
 
 function getPrefixSteps() {
@@ -5988,12 +6186,16 @@ function renderPrefixVisual() {
 
 function paintPrefixStep() {
   const step = getPrefixSteps()[state.visualState.step];
-  document.getElementById("prefix-raw").innerHTML = step.raw
-    .map((value, index) => `<div class="slot ${index === step.active - 1 ? "active" : ""}">${value}</div>`)
-    .join("");
-  document.getElementById("prefix-sum").innerHTML = step.prefix
-    .map((value, index) => `<div class="slot ${index === step.active ? "target" : ""}">${value}</div>`)
-    .join("");
+  document.getElementById("prefix-raw").innerHTML = svgArrayStageMarkup({
+    values: step.raw,
+    activeIndices: step.active > 0 ? [step.active - 1] : [],
+    extraNote: "原数组"
+  });
+  document.getElementById("prefix-sum").innerHTML = svgArrayStageMarkup({
+    values: step.prefix,
+    successIndices: [step.active],
+    extraNote: "前缀和数组"
+  });
   document.getElementById("prefix-caption").textContent = step.note;
 }
 
@@ -6011,7 +6213,7 @@ function playPrefixVisual() {
       return;
     }
     paintPrefixStep();
-  }, 1500);
+  }, 2100);
 }
 
 function getMonotonicSteps() {
@@ -6046,12 +6248,18 @@ function renderMonotonicVisual() {
 
 function paintMonotonicStep() {
   const step = getMonotonicSteps()[state.visualState.step];
-  document.getElementById("mono-raw").innerHTML = step.values
-    .map((value) => `<div class="slot ${value === step.active ? "active" : ""}">${value}</div>`)
-    .join("");
-  document.getElementById("mono-stack").innerHTML = (step.stack.length ? step.stack : ["空栈"])
-    .map((value) => `<div class="slot target">${value}</div>`)
-    .join("");
+  const activeIndex = step.values.findIndex((value) => value === step.active);
+  document.getElementById("mono-raw").innerHTML = svgArrayStageMarkup({
+    values: step.values,
+    activeIndices: activeIndex >= 0 ? [activeIndex] : [],
+    extraNote: "扫描中的原数组"
+  });
+  document.getElementById("mono-stack").innerHTML = svgArrayStageMarkup({
+    values: step.stack.length ? step.stack : ["空栈"],
+    successIndices: Array.from({ length: step.stack.length || 1 }, (_, index) => index),
+    topLabels: step.stack.length ? { [step.stack.length - 1]: "栈顶" } : {},
+    extraNote: "单调栈里只保留未来仍然可能有用的候选。"
+  });
   document.getElementById("mono-caption").textContent = step.note;
 }
 
@@ -6069,7 +6277,7 @@ function playMonotonicVisual() {
       return;
     }
     paintMonotonicStep();
-  }, 1500);
+  }, 2100);
 }
 
 function getAdvancedStructSteps(mode) {

@@ -36,6 +36,9 @@ def normalize(value):
         return {key: normalize(val) for key, val in sorted(value.items())}
     return value
 
+visible_count = sum(1 for test in tests if not test.get("hidden"))
+hidden_count = sum(1 for test in tests if test.get("hidden"))
+
 for index, test in enumerate(tests, start=1):
     args = test["input"]
     expected = test["expected"]
@@ -49,17 +52,24 @@ for index, test in enumerate(tests, start=1):
         raise SystemExit(0)
 
     if normalize(actual) != normalize(expected):
+        if test.get("hidden"):
+            message = "第 {{}} 个隐藏测试未通过。请重点检查边界条件、空输入、重复值、极端长度等情况。".format(index)
+        else:
+            message = "第 {{}} 个测试未通过。输入 = {{}}，期望 = {{}}，实际 = {{}}".format(index, args, expected, actual)
         print(json.dumps({{
             "ok": False,
-            "message": "第 {{}} 个测试未通过。输入 = {{}}，期望 = {{}}，实际 = {{}}".format(
-                index, args, expected, actual
-            )
+            "message": message,
+            "visibleCount": visible_count,
+            "hiddenCount": hidden_count,
+            "failedHidden": bool(test.get("hidden"))
         }}, ensure_ascii=False))
         raise SystemExit(0)
 
 print(json.dumps({{
     "ok": True,
-    "message": "共 {{}} 个测试全部通过。你现在可以回到上面的讲解，对照自己的实现总结为什么它是正确的。".format(len(tests))
+    "message": "共 {{}} 个测试全部通过，其中公开样例 {{}} 个，隐藏测试 {{}} 个。你现在可以回到上面的讲解，对照自己的实现总结为什么它是正确的。".format(len(tests), visible_count, hidden_count),
+    "visibleCount": visible_count,
+    "hiddenCount": hidden_count
 }}, ensure_ascii=False))
 """
 
