@@ -3377,6 +3377,7 @@ const state = {
   currentLessonId: lessons[0].id,
   activeExampleIndex: 0,
   activeApproachId: lessons[0].examples[0].approaches[0].id,
+  historyFilter: "all",
   visualTimer: null,
   visualState: {},
   practiceCode: {},
@@ -3397,6 +3398,7 @@ const refs = {
   courseProgress: document.getElementById("course-progress"),
   courseProgressText: document.getElementById("course-progress-text"),
   learningProfile: document.getElementById("learning-profile"),
+  submissionHistory: document.getElementById("submission-history"),
   reviewPanel: document.getElementById("review-panel"),
   heroPath: document.getElementById("hero-path"),
   heroTitle: document.getElementById("hero-title"),
@@ -3407,6 +3409,9 @@ const refs = {
   roadmapStage: document.getElementById("roadmap-stage"),
   roadmapNext: document.getElementById("roadmap-next"),
   roadmapReview: document.getElementById("roadmap-review"),
+  submissionSummary: document.getElementById("submission-summary"),
+  submissionFilter: document.getElementById("submission-filter"),
+  submissionPage: document.getElementById("submission-page"),
   lessonIndex: document.getElementById("lesson-index"),
   lessonTitle: document.getElementById("lesson-title"),
   lessonSubtitle: document.getElementById("lesson-subtitle"),
@@ -3429,7 +3434,11 @@ const refs = {
   codeExplanation: document.getElementById("code-explanation"),
   startLessonBtn: document.getElementById("start-lesson-btn"),
   visualCard: document.getElementById("visual-card"),
-  homeButton: document.getElementById("home-button")
+  homeButton: document.getElementById("home-button"),
+  exportProgressBtn: document.getElementById("export-progress-btn"),
+  importProgressBtn: document.getElementById("import-progress-btn"),
+  resetProgressBtn: document.getElementById("reset-progress-btn"),
+  importProgressInput: document.getElementById("import-progress-input")
 };
 
 const lessonTemplates = {
@@ -3581,6 +3590,79 @@ function saveLearningState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }
 
+function getLearningSnapshot() {
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    currentLessonId: state.currentLessonId,
+    practiceCode: state.practiceCode,
+    learning: state.learning
+  };
+}
+
+function downloadLearningSnapshot() {
+  const blob = new Blob([JSON.stringify(getLearningSnapshot(), null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const date = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `python-platform-progress-${date}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function importLearningSnapshot(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(String(reader.result || ""));
+      state.learning = {
+        ...state.learning,
+        ...parsed.learning,
+        completedLessons: parsed.learning?.completedLessons || {},
+        attemptsByLesson: parsed.learning?.attemptsByLesson || {},
+        wrongLessons: parsed.learning?.wrongLessons || {},
+        submissionHistory: parsed.learning?.submissionHistory || []
+      };
+      state.practiceCode = parsed.practiceCode || {};
+      state.currentLessonId = parsed.currentLessonId || lessons[0].id;
+      saveLearningState();
+      resetVisualState();
+      render();
+      window.alert("学习进度导入成功，已经刷新到最新状态。");
+    } catch (error) {
+      window.alert("导入失败：文件格式不正确，请选择由 Python Platform 导出的 JSON 文件。");
+      console.warn("导入学习进度失败", error);
+    } finally {
+      refs.importProgressInput.value = "";
+    }
+  };
+  reader.readAsText(file, "utf-8");
+}
+
+function resetLearningProgress() {
+  const confirmed = window.confirm("确定要清空当前浏览器里的学习进度吗？这会移除完成记录、提交历史和本地代码草稿。");
+  if (!confirmed) return;
+
+  state.learning = {
+    completedLessons: {},
+    attemptsByLesson: {},
+    wrongLessons: {},
+    submissionHistory: [],
+    lastLessonId: lessons[0].id
+  };
+  state.practiceCode = {};
+  state.practiceResult = {};
+  state.currentLessonId = lessons[0].id;
+  state.activeExampleIndex = 0;
+  state.activeApproachId = lessons[0].examples[0].approaches[0].id;
+  localStorage.removeItem(STORAGE_KEY);
+  saveLearningState();
+  resetVisualState();
+  render();
+}
+
 function getLessonStatus(lessonId) {
   if (state.learning.completedLessons[lessonId]) return "done";
   if (state.learning.wrongLessons[lessonId]) return "review";
@@ -3616,6 +3698,13 @@ function getReviewSuggestion() {
     .filter(Boolean)
     .join("、");
   return `优先回顾：${labels}。建议先看“思路总结与代码模板”，再重新提交实战题。`;
+}
+
+function getFilteredSubmissionHistory() {
+  const history = state.learning.submissionHistory;
+  if (state.historyFilter === "pass") return history.filter((item) => item.passed);
+  if (state.historyFilter === "fail") return history.filter((item) => !item.passed);
+  return history;
 }
 
 const lessonPractices = {
@@ -4061,9 +4150,109 @@ function renderLearningProfile() {
     .slice(0, 5)
     .map(([lessonId, detail]) => {
       const lesson = lessons.find((item) => item.id === lessonId);
-      return `<li><strong>${lesson?.title || lessonId}</strong>：${detail.message}</li>`;
+      return `<li>
+        <strong>${lesson?.title || lessonId}</strong>：${detail.message}
+        <div class="review-actions">
+          <button class="ghost-button small review-jump-btn" data-lesson-id="${lessonId}" type="button">去二刷</button>
+        </div>
+      </li>`;
     })
     .join("")}</ul>`;
+
+  refs.reviewPanel.querySelectorAll(".review-jump-btn").forEach((button) => {
+    button.addEventListener("click", () => focusLessonPractice(button.dataset.lessonId));
+  });
+}
+
+function renderSubmissionHistory() {
+  const history = state.learning.submissionHistory.slice(0, 6);
+  if (!history.length) {
+    refs.submissionHistory.innerHTML = "<p>你还没有提交记录。建议每学完一章就至少完整跑一次实战题。</p>";
+    return;
+  }
+
+  refs.submissionHistory.innerHTML = `<ol class="history-list">${history
+    .map(
+      (item) => `<li>
+        <strong>${item.lessonTitle}</strong>
+        <span class="history-meta ${item.passed ? "history-pass" : "history-fail"}">
+          ${item.passed ? "通过" : "未通过"} · ${item.timestamp}
+        </span>
+      </li>`
+    )
+    .join("")}</ol>`;
+}
+
+function renderSubmissionPage() {
+  const total = state.learning.submissionHistory.length;
+  const passed = state.learning.submissionHistory.filter((item) => item.passed).length;
+  const failed = total - passed;
+  refs.submissionSummary.innerHTML = `
+    <div class="profile-grid">
+      <div class="profile-stat"><strong>${total}</strong><span>总提交</span></div>
+      <div class="profile-stat"><strong>${passed}</strong><span>通过次数</span></div>
+      <div class="profile-stat"><strong>${failed}</strong><span>未通过次数</span></div>
+    </div>
+  `;
+
+  const filters = [
+    { id: "all", label: "全部" },
+    { id: "pass", label: "只看通过" },
+    { id: "fail", label: "只看未通过" }
+  ];
+  refs.submissionFilter.innerHTML = filters
+    .map(
+      (filter) =>
+        `<button class="tab-button${state.historyFilter === filter.id ? " active" : ""}" type="button" data-history-filter="${filter.id}">${filter.label}</button>`
+    )
+    .join("");
+  refs.submissionFilter.querySelectorAll("[data-history-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.historyFilter = button.dataset.historyFilter;
+      renderSubmissionPage();
+    });
+  });
+
+  const records = getFilteredSubmissionHistory();
+  if (!records.length) {
+    refs.submissionPage.innerHTML = "<p>当前筛选条件下还没有提交记录。先完成一章练习，记录页就会自动积累。</p>";
+    return;
+  }
+
+  refs.submissionPage.innerHTML = `<div class="history-card-list">${records
+    .map((item) => {
+      const lesson = lessons.find((entry) => entry.title === item.lessonTitle);
+      const lessonId = lesson?.id || "";
+      return `<article class="history-card">
+        <strong>${item.lessonTitle}</strong>
+        <span class="history-status ${item.passed ? "pass" : "fail"}">${item.passed ? "通过" : "未通过"}</span>
+        <p>${item.message}</p>
+        <span class="history-meta">${item.timestamp}</span>
+        <div class="history-actions">
+          <button class="ghost-button small history-open-btn" data-lesson-id="${lessonId}" type="button">打开章节</button>
+          ${item.passed ? "" : `<button class="ghost-button small history-review-btn" data-lesson-id="${lessonId}" type="button">进入二刷</button>`}
+        </div>
+      </article>`;
+    })
+    .join("")}</div>`;
+
+  refs.submissionPage.querySelectorAll(".history-open-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const lessonId = button.dataset.lessonId;
+      if (lessonId) setLesson(lessonId);
+    });
+  });
+  refs.submissionPage.querySelectorAll(".history-review-btn").forEach((button) => {
+    button.addEventListener("click", () => focusLessonPractice(button.dataset.lessonId));
+  });
+}
+
+function focusLessonPractice(lessonId) {
+  if (!lessonId) return;
+  setLesson(lessonId);
+  window.setTimeout(() => {
+    document.querySelector(".quiz-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 160);
 }
 
 function renderRoadmap() {
@@ -4184,12 +4373,22 @@ function renderQuiz() {
 function renderPractice() {
   const lesson = getCurrentLesson();
   const practice = lessonPractices[lesson.id];
+  const reviewInfo = state.learning.wrongLessons[lesson.id];
   if (!state.practiceCode[lesson.id]) {
     state.practiceCode[lesson.id] = practice.starterCode;
   }
   const result = state.practiceResult[lesson.id];
   refs.practiceContainer.innerHTML = `
     <div class="practice-panel">
+      ${
+        reviewInfo
+          ? `<div class="practice-review-banner">
+              <strong>二刷模式已开启</strong>
+              <p>你上一次没有通过这一章的练习。建议先看上面的“算法思路总结与代码模板”，再重新提交一次。</p>
+              <p>上次反馈：${reviewInfo.message}</p>
+            </div>`
+          : ""
+      }
       <div class="practice-card">
         <h4>${practice.title}</h4>
         <div class="practice-meta">
@@ -5592,10 +5791,38 @@ function playBacktrackingVisual() {
 
 function getDPSteps() {
   return [
-    { values: [1, 2, 0, 0, 0], active: 1, note: "以爬楼梯为例，先初始化最小状态：dp[1] = 1，dp[2] = 2。" },
-    { values: [1, 2, 3, 0, 0], active: 2, note: "dp[3] = dp[2] + dp[1] = 3。" },
-    { values: [1, 2, 3, 5, 0], active: 3, note: "dp[4] = dp[3] + dp[2] = 5。" },
-    { values: [1, 2, 3, 5, 8], active: 4, note: "dp[5] = dp[4] + dp[3] = 8。DP 的核心是复用之前的状态。" }
+    {
+      values: [1, 2, 0, 0, 0],
+      activeIndex: 1,
+      activeNode: "2",
+      visitedNodes: ["1", "2"],
+      activeEdges: ["1-3", "2-3"],
+      note: "以爬楼梯为例，先初始化最小状态：dp[1] = 1，dp[2] = 2。后面的状态都会依赖它们。"
+    },
+    {
+      values: [1, 2, 3, 0, 0],
+      activeIndex: 2,
+      activeNode: "3",
+      visitedNodes: ["1", "2", "3"],
+      activeEdges: ["1-3", "2-3"],
+      note: "dp[3] = dp[2] + dp[1] = 3。图上的两条依赖边会一起汇入状态 3。"
+    },
+    {
+      values: [1, 2, 3, 5, 0],
+      activeIndex: 3,
+      activeNode: "4",
+      visitedNodes: ["1", "2", "3", "4"],
+      activeEdges: ["2-4", "3-4"],
+      note: "dp[4] = dp[3] + dp[2] = 5。每个新状态都只依赖更小的问题。"
+    },
+    {
+      values: [1, 2, 3, 5, 8],
+      activeIndex: 4,
+      activeNode: "5",
+      visitedNodes: ["1", "2", "3", "4", "5"],
+      activeEdges: ["3-5", "4-5"],
+      note: "dp[5] = dp[4] + dp[3] = 8。DP 的核心就是把已经算过的状态复用起来。"
+    }
   ];
 }
 
@@ -5606,7 +5833,7 @@ function renderDPVisual() {
         <button class="ghost-button small" id="dp-play" type="button">播放状态转移</button>
         <button class="ghost-button small" id="dp-reset" type="button">重置</button>
       </div>
-      <div class="array-lane" id="dp-lane" style="margin-top:16px;"></div>
+      <div id="dp-lane" style="margin-top:16px;"></div>
       <div class="trace-caption" id="dp-caption"></div>
     </div>
   `;
@@ -5621,14 +5848,37 @@ function renderDPVisual() {
 
 function paintDPStep() {
   const step = getDPSteps()[state.visualState.step];
-  document.getElementById("dp-lane").innerHTML = step.values
-    .map((value, index) => {
-      const classes = ["slot"];
-      if (index === step.active) classes.push("active");
-      if (index < step.active) classes.push("target");
-      return `<div class="${classes.join(" ")}">${value}</div>`;
-    })
-    .join("");
+  const nodes = [
+    { id: "1", x: 120, y: 170, label: "1" },
+    { id: "2", x: 240, y: 92, label: "2" },
+    { id: "3", x: 360, y: 170, label: "3" },
+    { id: "4", x: 500, y: 92, label: "4" },
+    { id: "5", x: 620, y: 170, label: "5" }
+  ];
+  const edges = [
+    { from: "1", to: "3" },
+    { from: "2", to: "3" },
+    { from: "2", to: "4" },
+    { from: "3", to: "4" },
+    { from: "3", to: "5" },
+    { from: "4", to: "5" }
+  ];
+  document.getElementById("dp-lane").innerHTML =
+    svgNodeStageMarkup({
+      height: 240,
+      nodes,
+      edges,
+      activeIds: [step.activeNode],
+      visitedIds: step.visitedNodes || [],
+      activeEdges: step.activeEdges || [],
+      labels: Object.fromEntries(step.values.map((value, index) => [String(index + 1), `dp${index + 1}=${value}`]))
+    }) +
+    svgArrayStageMarkup({
+      values: step.values,
+      activeIndices: [step.activeIndex],
+      successIndices: Array.from({ length: step.activeIndex }, (_, index) => index),
+      extraNote: `正在计算 dp[${step.activeIndex + 1}]`
+    });
   document.getElementById("dp-caption").textContent = step.note;
 }
 
@@ -5646,7 +5896,7 @@ function playDPVisual() {
       return;
     }
     paintDPStep();
-  }, 1500);
+  }, 2100);
 }
 
 function getGreedySteps() {
@@ -5824,14 +6074,48 @@ function playMonotonicVisual() {
 
 function getAdvancedStructSteps(mode) {
   const union = [
-    { items: ["0", "1", "2", "3"], active: "0-1", note: "初始时每个节点各自属于一个集合。" },
-    { items: ["0,1", "2", "3"], active: "1-2", note: "把 0 和 1 合并后，再把 1 和 2 合并。集合关系会被传递。" },
-    { items: ["0,1,2", "3"], active: "find(2)", note: "此时 find(2) 会找到和 0、1 同一个根。并查集就擅长做这种连通性判断。" }
+    {
+      activeNodes: ["0", "1", "2", "3"],
+      activeEdges: [],
+      groups: ["{0}", "{1}", "{2}", "{3}"],
+      note: "初始时每个节点各自属于一个集合，图上还没有合并边。"
+    },
+    {
+      activeNodes: ["1", "2"],
+      activeEdges: ["0-1", "1-2"],
+      visitedNodes: ["0", "1", "2"],
+      groups: ["{0,1,2}", "{3}"],
+      note: "先 union(0,1)，再 union(1,2)。并查集最关键的是“合并后具有传递性”。"
+    },
+    {
+      activeNodes: ["2", "0"],
+      activeEdges: ["2-1", "1-0"],
+      visitedNodes: ["0", "1", "2"],
+      groups: ["find(2) -> root 0", "{3}"],
+      note: "此时 find(2) 会沿父指针一路找到根 0。路径压缩的目标，就是把这条路变短。"
+    }
   ];
   const trie = [
-    { items: ["root"], active: "a", note: "Trie 从根开始，按字符逐层延伸路径。" },
-    { items: ["root", "a"], active: "p", note: "插入 app 时，先创建 a，再继续创建 p。" },
-    { items: ["root", "a", "p", "p"], active: "l", note: "再插入 apple 时，前缀 app 可以直接复用，后面继续分叉。" }
+    {
+      activeNodes: ["root"],
+      activeEdges: [],
+      words: ["app", "apple"],
+      note: "Trie 从根开始，按字符逐层延伸路径。所有单词都共享根节点。"
+    },
+    {
+      activeNodes: ["a", "p1", "p2"],
+      activeEdges: ["root-a", "a-p1", "p1-p2"],
+      visitedNodes: ["root", "a", "p1", "p2"],
+      words: ["app"],
+      note: "插入 app 时，路径 root -> a -> p -> p 被依次创建。"
+    },
+    {
+      activeNodes: ["l", "e"],
+      activeEdges: ["p2-l", "l-e"],
+      visitedNodes: ["root", "a", "p1", "p2", "l", "e"],
+      words: ["app", "apple"],
+      note: "再插入 apple 时，前缀 app 直接复用，只需要从第二个 p 往下继续分叉。"
+    }
   ];
   return mode === "trie" ? trie : union;
 }
@@ -5849,7 +6133,7 @@ function renderAdvancedStructVisual() {
         <button class="ghost-button small" id="adv-play" type="button">播放</button>
         <button class="ghost-button small" id="adv-reset" type="button">重置</button>
       </div>
-      <div class="array-lane" id="adv-lane"></div>
+      <div id="adv-lane"></div>
       <div class="trace-caption" id="adv-caption"></div>
     </div>
   `;
@@ -5871,9 +6155,54 @@ function renderAdvancedStructVisual() {
 
 function paintAdvancedStructStep() {
   const step = getAdvancedStructSteps(state.visualState.mode)[state.visualState.step];
-  document.getElementById("adv-lane").innerHTML = step.items
-    .map((value) => `<div class="slot ${value === step.active ? "active" : "target"}">${value}</div>`)
-    .join("");
+  if (state.visualState.mode === "trie") {
+    const nodes = [
+      { id: "root", x: 120, y: 130, label: "root" },
+      { id: "a", x: 260, y: 130, label: "a" },
+      { id: "p1", x: 400, y: 130, label: "p" },
+      { id: "p2", x: 540, y: 130, label: "p*" },
+      { id: "l", x: 620, y: 70, label: "l" },
+      { id: "e", x: 700, y: 70, label: "e*" }
+    ];
+    const edges = [
+      { from: "root", to: "a" },
+      { from: "a", to: "p1" },
+      { from: "p1", to: "p2" },
+      { from: "p2", to: "l" },
+      { from: "l", to: "e" }
+    ];
+    document.getElementById("adv-lane").innerHTML =
+      svgNodeStageMarkup({
+        width: 780,
+        height: 220,
+        nodes,
+        edges,
+        activeIds: step.activeNodes || [],
+        visitedIds: step.visitedNodes || [],
+        activeEdges: step.activeEdges || []
+      }) + `<div class="svg-legend">当前词集：${step.words.join("、")}，带 * 的节点表示一个单词在这里结束。</div>`;
+  } else {
+    const nodes = [
+      { id: "0", x: 120, y: 130, label: "0" },
+      { id: "1", x: 280, y: 130, label: "1" },
+      { id: "2", x: 440, y: 130, label: "2" },
+      { id: "3", x: 620, y: 130, label: "3" }
+    ];
+    const edges = [
+      { from: "0", to: "1" },
+      { from: "1", to: "2" }
+    ];
+    document.getElementById("adv-lane").innerHTML =
+      svgNodeStageMarkup({
+        width: 720,
+        height: 220,
+        nodes,
+        edges,
+        activeIds: step.activeNodes || [],
+        visitedIds: step.visitedNodes || [],
+        activeEdges: step.activeEdges || []
+      }) + `<div class="svg-legend">集合状态：${step.groups.join(" · ")}</div>`;
+  }
   document.getElementById("adv-caption").textContent = step.note;
 }
 
@@ -5891,7 +6220,7 @@ function playAdvancedStructVisual() {
       return;
     }
     paintAdvancedStructStep();
-  }, 1500);
+  }, 2100);
 }
 
 function formatValue(value) {
@@ -5908,11 +6237,19 @@ function bindStaticEvents() {
     });
   });
   refs.homeButton.addEventListener("click", () => setLesson(lessons[0].id));
+  refs.exportProgressBtn.addEventListener("click", downloadLearningSnapshot);
+  refs.importProgressBtn.addEventListener("click", () => refs.importProgressInput.click());
+  refs.importProgressInput.addEventListener("change", (event) => {
+    importLearningSnapshot(event.target.files?.[0]);
+  });
+  refs.resetProgressBtn.addEventListener("click", resetLearningProgress);
 }
 
 function render() {
   renderLessonList();
   renderLearningProfile();
+  renderSubmissionHistory();
+  renderSubmissionPage();
   renderRoadmap();
   renderLessonContent();
   renderExamples();

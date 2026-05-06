@@ -42,8 +42,26 @@
       </section>
 
       <section class="sidebar-section">
+        <div class="sidebar-title">学习工具</div>
+        <div class="tips">
+          <div class="tool-actions">
+            <button class="ghost-button small tool-button" id="export-progress-btn" type="button">导出进度</button>
+            <button class="ghost-button small tool-button" id="import-progress-btn" type="button">导入进度</button>
+            <button class="ghost-button small tool-button danger" id="reset-progress-btn" type="button">重置进度</button>
+          </div>
+          <input id="import-progress-input" type="file" accept="application/json" hidden>
+          <p class="tool-hint">进度会保存在浏览器本地，也可以手动导出成 JSON，换电脑后继续学习。</p>
+        </div>
+      </section>
+
+      <section class="sidebar-section">
         <div class="sidebar-title">错题本</div>
         <div class="tips" id="review-panel"></div>
+      </section>
+
+      <section class="sidebar-section">
+        <div class="sidebar-title">最近提交</div>
+        <div class="tips" id="submission-history"></div>
       </section>
 
       <section class="sidebar-section tips">
@@ -133,6 +151,29 @@
           <section class="summary-panel span-2">
             <div class="section-label">复习建议</div>
             <div id="roadmap-review"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="card dashboard-card">
+        <div class="card-header compact">
+          <div>
+            <h3>提交记录页</h3>
+            <p>把每次练习都当成一次真实提交，及时发现哪些章节需要二刷，哪些题型已经稳定掌握。</p>
+          </div>
+        </div>
+        <div class="summary-grid">
+          <section class="summary-panel">
+            <div class="section-label">提交概览</div>
+            <div id="submission-summary"></div>
+          </section>
+          <section class="summary-panel">
+            <div class="section-label">筛选</div>
+            <div class="example-tabs" id="submission-filter"></div>
+          </section>
+          <section class="summary-panel span-2">
+            <div class="section-label">记录列表</div>
+            <div id="submission-page"></div>
           </section>
         </div>
       </section>

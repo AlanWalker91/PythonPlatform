@@ -1013,6 +1013,118 @@ code {
   color: var(--muted);
 }
 
+.tool-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.tool-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.tool-button.danger {
+  background: rgba(228, 95, 115, 0.12);
+  color: #a73b4c;
+}
+
+.tool-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.history-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.history-list strong {
+  color: var(--text);
+}
+
+.history-meta {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.history-pass {
+  color: #2b5f3b;
+}
+
+.history-fail {
+  color: #a73b4c;
+}
+
+.history-actions,
+.review-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.history-card-list,
+.review-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.history-card,
+.review-card {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(17, 25, 39, 0.04);
+  border: 1px solid rgba(17, 25, 39, 0.06);
+}
+
+.history-card strong,
+.review-card strong {
+  display: block;
+}
+
+.history-card p,
+.review-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.history-status {
+  display: inline-flex;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.history-status.pass {
+  background: rgba(79, 154, 104, 0.14);
+  color: #2b5f3b;
+}
+
+.history-status.fail {
+  background: rgba(228, 95, 115, 0.12);
+  color: #a73b4c;
+}
+
+.practice-review-banner {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(228, 95, 115, 0.08);
+  border: 1px solid rgba(228, 95, 115, 0.16);
+}
+
+.practice-review-banner p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
 @media (max-width: 1180px) {
   .shell {
     grid-template-columns: 1fr;
