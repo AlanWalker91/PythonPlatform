@@ -922,6 +922,11 @@ code {
   gap: 16px;
 }
 
+.practice-shell {
+  display: grid;
+  gap: 16px;
+}
+
 .practice-meta {
   display: flex;
   gap: 8px;
@@ -964,6 +969,61 @@ code {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.practice-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+  gap: 16px;
+}
+
+.practice-editor-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.practice-editor-topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(17, 25, 39, 0.08);
+  background: rgba(17, 25, 39, 0.04);
+}
+
+.practice-editor-topbar strong {
+  display: block;
+}
+
+.practice-toolbar-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.practice-editor-wrap {
+  padding: 16px;
+}
+
+.practice-sidepanel {
+  display: grid;
+  gap: 16px;
+}
+
+.practice-status-board {
+  display: grid;
+  gap: 10px;
+}
+
+.practice-status-item {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(17, 25, 39, 0.04);
+}
+
+.practice-status-item strong {
+  display: block;
+  font-size: 18px;
 }
 
 .testcase-list,
@@ -1168,8 +1228,36 @@ code {
   margin-top: 12px;
 }
 
+.focus-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.focus-stat {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(17, 25, 39, 0.04);
+}
+
+.focus-stat strong {
+  display: block;
+  font-size: 18px;
+}
+
+.code-helper-list {
+  margin-top: 14px;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+}
+
 @media (max-width: 840px) {
   .practice-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-workspace {
     grid-template-columns: 1fr;
   }
 }

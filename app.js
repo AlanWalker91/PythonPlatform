@@ -3379,7 +3379,6 @@ const state = {
   activeApproachId: lessons[0].examples[0].approaches[0].id,
   activePracticeIdByLesson: {},
   selectedSubmissionId: null,
-  historyFilter: "all",
   visualTimer: null,
   visualState: {},
   practiceCode: {},
@@ -3412,8 +3411,7 @@ const refs = {
   roadmapNext: document.getElementById("roadmap-next"),
   roadmapReview: document.getElementById("roadmap-review"),
   submissionSummary: document.getElementById("submission-summary"),
-  submissionFilter: document.getElementById("submission-filter"),
-  submissionPage: document.getElementById("submission-page"),
+  submissionFocus: document.getElementById("submission-focus"),
   submissionDetail: document.getElementById("submission-detail"),
   lessonIndex: document.getElementById("lesson-index"),
   lessonTitle: document.getElementById("lesson-title"),
@@ -3707,11 +3705,51 @@ function getReviewSuggestion() {
   return `优先回顾：${labels}。建议先看“思路总结与代码模板”，再重新提交实战题。`;
 }
 
-function getFilteredSubmissionHistory() {
-  const history = state.learning.submissionHistory;
-  if (state.historyFilter === "pass") return history.filter((item) => item.passed);
-  if (state.historyFilter === "fail") return history.filter((item) => !item.passed);
-  return history;
+function getLessonSubmissionHistory(lessonId) {
+  return state.learning.submissionHistory.filter((item) => item.lessonId === lessonId);
+}
+
+function getLastSuccessfulSubmission(lessonId) {
+  return getLessonSubmissionHistory(lessonId).find((item) => item.passed) || null;
+}
+
+function buildCommentedCode(code, context = {}) {
+  const lines = code.split("\n");
+  const annotated = [];
+  const lessonTitle = context.lessonTitle || "当前专题";
+  const approachLabel = context.approachLabel || "当前解法";
+  annotated.push(`# ${lessonTitle} · ${approachLabel}`);
+  annotated.push("# 下面是讲解注释版代码，重点帮助你看清“每一步为什么要这么写”。");
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      annotated.push(line);
+      return;
+    }
+    if (index === 0 && trimmed.startsWith("def ")) {
+      annotated.push("# 先定义函数入口，明确输入和输出。");
+    } else if (trimmed.startsWith("for ")) {
+      annotated.push(`${" ".repeat(line.search(/\S|$/))}# 遍历候选元素，逐步缩小问题范围。`);
+    } else if (trimmed.startsWith("while ")) {
+      annotated.push(`${" ".repeat(line.search(/\S|$/))}# 持续推进指针或状态，直到循环条件不再满足。`);
+    } else if (trimmed.startsWith("if ")) {
+      annotated.push(`${" ".repeat(line.search(/\S|$/))}# 先判断当前情况，再决定是返回答案还是继续调整状态。`);
+    } else if (trimmed.startsWith("elif ")) {
+      annotated.push(`${" ".repeat(line.search(/\S|$/))}# 前一个条件不成立时，转到下一种分支。`);
+    } else if (trimmed.startsWith("else:")) {
+      annotated.push(`${" ".repeat(line.search(/\S|$/))}# 前面的情况都不满足，走默认处理逻辑。`);
+    } else if (trimmed.startsWith("return ")) {
+      annotated.push(`${" ".repeat(line.search(/\S|$/))}# 返回当前阶段已经得到的结果。`);
+    } else if (trimmed.includes("append(") || trimmed.includes("add(")) {
+      annotated.push(`${" ".repeat(line.search(/\S|$/))}# 把当前元素加入结果或辅助结构，方便后续复用。`);
+    } else if (trimmed.includes("left += 1") || trimmed.includes("right -= 1")) {
+      annotated.push(`${" ".repeat(line.search(/\S|$/))}# 根据当前比较结果收缩区间或移动指针。`);
+    } else if (trimmed.includes("dp[")) {
+      annotated.push(`${" ".repeat(line.search(/\S|$/))}# 利用已经算过的更小状态，推导当前状态。`);
+    }
+    annotated.push(line);
+  });
+  return annotated.join("\n");
 }
 
 const lessonPractices = {
@@ -4295,84 +4333,41 @@ function renderSubmissionHistory() {
 }
 
 function renderSubmissionPage() {
-  const total = state.learning.submissionHistory.length;
-  const passed = state.learning.submissionHistory.filter((item) => item.passed).length;
+  const lessonId = state.currentLessonId;
+  const lessonHistory = getLessonSubmissionHistory(lessonId);
+  const total = lessonHistory.length;
+  const passed = lessonHistory.filter((item) => item.passed).length;
   const failed = total - passed;
+  const activePractice = getActivePractice(lessonId);
+  const activePracticeKey = `${lessonId}::${activePractice.id}`;
+  const lastSuccess = getLastSuccessfulSubmission(lessonId);
   refs.submissionSummary.innerHTML = `
     <div class="profile-grid">
-      <div class="profile-stat"><strong>${total}</strong><span>总提交</span></div>
-      <div class="profile-stat"><strong>${passed}</strong><span>通过次数</span></div>
-      <div class="profile-stat"><strong>${failed}</strong><span>未通过次数</span></div>
+      <div class="profile-stat"><strong>${total}</strong><span>本章总提交</span></div>
+      <div class="profile-stat"><strong>${passed}</strong><span>本章通过次数</span></div>
+      <div class="profile-stat"><strong>${failed}</strong><span>本章未通过次数</span></div>
     </div>
   `;
 
-  const filters = [
-    { id: "all", label: "全部" },
-    { id: "pass", label: "只看通过" },
-    { id: "fail", label: "只看未通过" }
-  ];
-  refs.submissionFilter.innerHTML = filters
-    .map(
-      (filter) =>
-        `<button class="tab-button${state.historyFilter === filter.id ? " active" : ""}" type="button" data-history-filter="${filter.id}">${filter.label}</button>`
-    )
-    .join("");
-  refs.submissionFilter.querySelectorAll("[data-history-filter]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.historyFilter = button.dataset.historyFilter;
-      renderSubmissionPage();
-    });
-  });
+  refs.submissionFocus.innerHTML = `
+    <div class="focus-grid">
+      <div class="focus-stat"><strong>${getCurrentLesson().title}</strong><span>当前章节</span></div>
+      <div class="focus-stat"><strong>${activePractice.title}</strong><span>当前实战练习</span></div>
+      <div class="focus-stat"><strong>${state.learning.attemptsByLesson[lessonId] || 0}</strong><span>本章累计提交次数</span></div>
+      <div class="focus-stat"><strong>${state.practiceResult[activePracticeKey]?.passed ? "已通过" : "待完成"}</strong><span>当前题目状态</span></div>
+    </div>
+  `;
 
-  const records = getFilteredSubmissionHistory();
-  if (!records.length) {
-    refs.submissionPage.innerHTML = "<p>当前筛选条件下还没有提交记录。先完成一章练习，记录页就会自动积累。</p>";
-    refs.submissionDetail.innerHTML = "<p>提交详情会在你提交练习后显示，这里会保留题目、结果、反馈和当时的代码快照。</p>";
+  if (!lastSuccess) {
+    refs.submissionDetail.innerHTML = "<p>当前章节还没有成功记录。先完成一次通过提交，这里会展示最近一次成功提交的代码快照、测试统计和结果说明。</p>";
     return;
   }
-
-  refs.submissionPage.innerHTML = `<div class="history-card-list">${records
-    .map((item) => {
-      const lesson = lessons.find((entry) => entry.title === item.lessonTitle);
-      const lessonId = lesson?.id || "";
-      return `<article class="history-card">
-        <strong>${item.lessonTitle}</strong>
-        <p>${item.practiceTitle || "章节核心题"}</p>
-        <span class="history-status ${item.passed ? "pass" : "fail"}">${item.passed ? "通过" : "未通过"}</span>
-        <p>${item.message}</p>
-        <span class="history-meta">${item.timestamp}</span>
-        <div class="history-actions">
-          <button class="ghost-button small history-detail-btn" data-submission-id="${item.id}" type="button">查看详情</button>
-          <button class="ghost-button small history-open-btn" data-lesson-id="${lessonId}" type="button">打开章节</button>
-          ${item.passed ? "" : `<button class="ghost-button small history-review-btn" data-lesson-id="${lessonId}" type="button">进入二刷</button>`}
-        </div>
-      </article>`;
-    })
-    .join("")}</div>`;
-
-  refs.submissionPage.querySelectorAll(".history-detail-btn").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.selectedSubmissionId = button.dataset.submissionId;
-      renderSubmissionDetail();
-    });
-  });
-  refs.submissionPage.querySelectorAll(".history-open-btn").forEach((button) => {
-    button.addEventListener("click", () => {
-      const lessonId = button.dataset.lessonId;
-      if (lessonId) setLesson(lessonId);
-    });
-  });
-  refs.submissionPage.querySelectorAll(".history-review-btn").forEach((button) => {
-    button.addEventListener("click", () => focusLessonPractice(button.dataset.lessonId));
-  });
-  if (!state.selectedSubmissionId && records.length) {
-    state.selectedSubmissionId = records[0].id;
-  }
+  state.selectedSubmissionId = lastSuccess.id;
   renderSubmissionDetail();
 }
 
 function renderSubmissionDetail() {
-  const fallback = "<p>点击左侧某次提交的“查看详情”，这里会展示那次提交的完整反馈和代码快照。</p>";
+  const fallback = "<p>当前章节还没有可展示的提交详情。完成一次提交后，这里会展示完整反馈和代码快照。</p>";
   if (!state.selectedSubmissionId) {
     refs.submissionDetail.innerHTML = fallback;
     return;
@@ -4385,13 +4380,17 @@ function renderSubmissionDetail() {
   refs.submissionDetail.innerHTML = `
     <div class="submission-detail-card">
       <strong>${submission.lessonTitle} · ${submission.practiceTitle || "章节核心题"}</strong>
-      <span class="history-status ${submission.passed ? "pass" : "fail"}">${submission.passed ? "通过" : "未通过"}</span>
+      <span class="history-status ${submission.passed ? "pass" : "fail"}">${submission.passed ? "最近一次成功提交" : "未通过"}</span>
       <p>${submission.message}</p>
       <div class="history-meta">${submission.timestamp}</div>
       <p>公开样例：${submission.visibleCount ?? 0} 个，隐藏测试：${submission.hiddenCount ?? 0} 个</p>
+      <div class="history-actions">
+        <button class="ghost-button small" id="submission-back-to-practice" type="button">回到当前练习</button>
+      </div>
       <pre><code>${escapeHtml(submission.codeSnapshot || "# 本次提交没有保留代码快照")}</code></pre>
     </div>
   `;
+  document.getElementById("submission-back-to-practice")?.addEventListener("click", () => focusLessonPractice(submission.lessonId));
 }
 
 function focusLessonPractice(lessonId) {
@@ -4495,8 +4494,19 @@ function renderCodePanel() {
     button.addEventListener("click", () => setApproach(approach.id));
     refs.codeSwitcher.appendChild(button);
   });
-  refs.codeBlock.textContent = active.code;
-  refs.codeExplanation.textContent = active.explanation;
+  const lesson = getCurrentLesson();
+  refs.codeBlock.textContent = buildCommentedCode(active.code, {
+    lessonTitle: lesson.title,
+    approachLabel: active.label
+  });
+  refs.codeExplanation.innerHTML = `
+    <p>${escapeHtml(active.explanation)}</p>
+    <ul class="code-helper-list">
+      <li>优先看函数入口和返回值，明确这段代码“输入什么、输出什么”。</li>
+      <li>再看循环和判断，理解代码是在“枚举”“收缩区间”还是“复用状态”。</li>
+      <li>如果想对照原始实现，可以把上面的注释当成老师讲解，再一行行读代码主体。</li>
+    </ul>
+  `;
 }
 
 function renderSummary() {
@@ -4526,6 +4536,7 @@ function renderPractice() {
   const practice = getActivePractice(lesson.id);
   const practiceKey = `${lesson.id}::${practice.id}`;
   const reviewInfo = state.learning.wrongLessons[lesson.id];
+  const lessonSubmissionCount = getLessonSubmissionHistory(lesson.id).length;
   if (!state.practiceCode[practiceKey]) {
     state.practiceCode[practiceKey] = practice.starterCode;
   }
@@ -4552,49 +4563,71 @@ function renderPractice() {
             .join("")}
         </div>
       </div>
-      <div class="practice-card">
-        <h4>${practice.title}</h4>
-        <div class="practice-meta">
-          <span class="badge">${practice.difficulty}</span>
-          <span class="badge">Python</span>
-          <span class="badge">${practice.signature}</span>
-        </div>
-        <p><strong>题目：</strong>${practice.prompt}</p>
-      </div>
-
-      <div class="practice-info-grid">
-        <div class="practice-detail-card">
-          <div class="section-label">公开测试样例</div>
-          <ul class="testcase-list">
-            ${practice.tests
-              .map(
-                (test, index) =>
-                  `<li>样例 ${index + 1}：输入 = ${escapeHtml(JSON.stringify(test.input))}，期望输出 = ${escapeHtml(
-                    JSON.stringify(test.expected)
-                  )}</li>`
-              )
-              .join("")}
-          </ul>
-        </div>
-        <div class="practice-detail-card">
-          <div class="section-label">提示与隐藏测试</div>
-          <ul class="practice-hints">
-            ${practice.hints.map((hint) => `<li>${hint}</li>`).join("")}
-          </ul>
-          <div class="hidden-tests-note" style="margin-top:12px;">
-            本题共有 <strong>${practice.hiddenTests?.length || 0}</strong> 个隐藏测试，不会展示具体输入。
-            它们通常会检查边界条件、极端输入、重复值、空结构和特殊顺序。
+      <div class="practice-shell">
+        <div class="practice-card">
+          <h4>${practice.title}</h4>
+          <div class="practice-meta">
+            <span class="badge">${practice.difficulty}</span>
+            <span class="badge">Python</span>
+            <span class="badge">${practice.signature}</span>
           </div>
+          <p><strong>题目：</strong>${practice.prompt}</p>
         </div>
-      </div>
 
-      <div class="practice-card">
-        <label class="editor-label" for="practice-editor">在下面写 Python 代码：</label>
-        <textarea id="practice-editor" class="practice-editor" spellcheck="false">${escapeHtml(state.practiceCode[practiceKey])}</textarea>
-        <div class="practice-actions">
-          <button class="primary-button" id="run-practice-btn" type="button">运行测试</button>
-          <button class="ghost-button" id="reset-practice-btn" type="button">重置模板</button>
-          <button class="ghost-button" id="next-lesson-btn" type="button">进入下一章</button>
+        <div class="practice-workspace">
+          <div class="practice-card practice-editor-card">
+            <div class="practice-editor-topbar">
+              <div>
+                <strong>代码编辑器</strong>
+                <div class="practice-toolbar-meta">像力扣一样，先在编辑区完成实现，再运行公开样例和隐藏测试。</div>
+              </div>
+              <div class="practice-actions">
+                <button class="primary-button" id="run-practice-btn" type="button">提交运行</button>
+                <button class="ghost-button" id="reset-practice-btn" type="button">重置代码</button>
+                <button class="ghost-button" id="next-lesson-btn" type="button">下一章</button>
+              </div>
+            </div>
+            <div class="practice-editor-wrap">
+              <label class="editor-label" for="practice-editor">实现函数：</label>
+              <textarea id="practice-editor" class="practice-editor" spellcheck="false">${escapeHtml(state.practiceCode[practiceKey])}</textarea>
+            </div>
+          </div>
+
+          <div class="practice-sidepanel">
+            <div class="practice-detail-card">
+              <div class="section-label">提交状态</div>
+              <div class="practice-status-board">
+                <div class="practice-status-item"><strong>${lessonSubmissionCount}</strong><span>本章提交次数</span></div>
+                <div class="practice-status-item"><strong>${getLessonSubmissionHistory(lesson.id).filter((item) => item.practiceId === practice.id).length}</strong><span>当前题目提交次数</span></div>
+                <div class="practice-status-item"><strong>${result ? (result.passed ? "已通过" : "待修正") : "未提交"}</strong><span>当前题目状态</span></div>
+              </div>
+            </div>
+
+            <div class="practice-detail-card">
+              <div class="section-label">公开样例</div>
+              <ul class="testcase-list">
+                ${practice.tests
+                  .map(
+                    (test, index) =>
+                      `<li>样例 ${index + 1}：输入 = ${escapeHtml(JSON.stringify(test.input))}，期望输出 = ${escapeHtml(
+                        JSON.stringify(test.expected)
+                      )}</li>`
+                  )
+                  .join("")}
+              </ul>
+            </div>
+
+            <div class="practice-detail-card">
+              <div class="section-label">提示与隐藏测试</div>
+              <ul class="practice-hints">
+                ${practice.hints.map((hint) => `<li>${hint}</li>`).join("")}
+              </ul>
+              <div class="hidden-tests-note" style="margin-top:12px;">
+                本题共有 <strong>${practice.hiddenTests?.length || 0}</strong> 个隐藏测试，不会展示具体输入。
+                它们通常检查边界条件、空输入、重复值和极端规模。
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
