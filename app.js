@@ -3378,6 +3378,7 @@ const state = {
   activeExampleIndex: 0,
   activeApproachId: lessons[0].examples[0].approaches[0].id,
   activePracticeIdByLesson: {},
+  activeResultTabByPractice: {},
   selectedSubmissionId: null,
   visualTimer: null,
   visualState: {},
@@ -3577,6 +3578,7 @@ function loadLearningState() {
     };
     state.practiceCode = parsed.practiceCode || {};
     state.activePracticeIdByLesson = parsed.activePracticeIdByLesson || {};
+    state.activeResultTabByPractice = parsed.activeResultTabByPractice || {};
     state.currentLessonId = parsed.currentLessonId || state.learning.lastLessonId || state.currentLessonId;
   } catch (error) {
     console.warn("读取学习进度失败，将使用默认状态。", error);
@@ -3587,6 +3589,7 @@ function saveLearningState() {
   const payload = {
     currentLessonId: state.currentLessonId,
     activePracticeIdByLesson: state.activePracticeIdByLesson,
+    activeResultTabByPractice: state.activeResultTabByPractice,
     practiceCode: state.practiceCode,
     learning: state.learning
   };
@@ -3656,6 +3659,7 @@ function resetLearningProgress() {
     lastLessonId: lessons[0].id
   };
   state.activePracticeIdByLesson = {};
+  state.activeResultTabByPractice = {};
   state.selectedSubmissionId = null;
   state.practiceCode = {};
   state.practiceResult = {};
@@ -3750,6 +3754,32 @@ function buildCommentedCode(code, context = {}) {
     annotated.push(line);
   });
   return annotated.join("\n");
+}
+
+function buildCodeWalkthrough(code) {
+  const steps = [];
+  code.split("\n").forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+    if (trimmed.startsWith("def ")) {
+      steps.push("先定义函数入口，明确这段实现接收什么输入、要返回什么结果。");
+    } else if (trimmed.startsWith("for ")) {
+      steps.push("这里进入遍历阶段，算法开始系统地枚举候选状态或候选元素。");
+    } else if (trimmed.startsWith("while ")) {
+      steps.push("这里进入持续推进阶段，通常意味着指针移动、区间收缩或状态循环更新。");
+    } else if (trimmed.startsWith("if ")) {
+      steps.push("这里是关键判断点，用来区分当前情况应该直接命中、更新答案还是继续搜索。");
+    } else if (trimmed.startsWith("return ")) {
+      steps.push("这里返回当前阶段已经确认无误的答案，说明主流程在这里收口。");
+    } else if (trimmed.includes("append(") || trimmed.includes("add(")) {
+      steps.push("这里把当前信息存进辅助结构，方便后面的步骤直接复用。");
+    } else if (trimmed.includes("left += 1") || trimmed.includes("right -= 1")) {
+      steps.push("这里在根据比较结果移动边界或指针，本质上是在缩小搜索空间。");
+    } else if (trimmed.includes("dp[")) {
+      steps.push("这里在做状态转移，把更小子问题的答案组合成当前状态。");
+    }
+  });
+  return [...new Set(steps)].slice(0, 6);
 }
 
 const lessonPractices = {
@@ -4506,6 +4536,10 @@ function renderCodePanel() {
       <li>再看循环和判断，理解代码是在“枚举”“收缩区间”还是“复用状态”。</li>
       <li>如果想对照原始实现，可以把上面的注释当成老师讲解，再一行行读代码主体。</li>
     </ul>
+    <div class="section-label" style="margin-top:14px;">逐步带读</div>
+    <ol class="code-helper-list">
+      ${buildCodeWalkthrough(active.code).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+    </ol>
   `;
 }
 
@@ -4537,6 +4571,9 @@ function renderPractice() {
   const practiceKey = `${lesson.id}::${practice.id}`;
   const reviewInfo = state.learning.wrongLessons[lesson.id];
   const lessonSubmissionCount = getLessonSubmissionHistory(lesson.id).length;
+  if (!state.activeResultTabByPractice[practiceKey]) {
+    state.activeResultTabByPractice[practiceKey] = "result";
+  }
   if (!state.practiceCode[practiceKey]) {
     state.practiceCode[practiceKey] = practice.starterCode;
   }
@@ -4565,13 +4602,22 @@ function renderPractice() {
       </div>
       <div class="practice-shell">
         <div class="practice-card">
-          <h4>${practice.title}</h4>
-          <div class="practice-meta">
-            <span class="badge">${practice.difficulty}</span>
-            <span class="badge">Python</span>
-            <span class="badge">${practice.signature}</span>
-          </div>
-          <p><strong>题目：</strong>${practice.prompt}</p>
+          <details class="practice-details" open>
+            <summary class="practice-summary">
+              <span>
+                <strong>${practice.title}</strong>
+                <span class="practice-toolbar-meta">点击展开 / 收起题目说明</span>
+              </span>
+            </summary>
+            <div class="practice-details-body">
+              <div class="practice-meta">
+                <span class="badge">${practice.difficulty}</span>
+                <span class="badge">Python</span>
+                <span class="badge">${practice.signature}</span>
+              </div>
+              <p><strong>题目：</strong>${practice.prompt}</p>
+            </div>
+          </details>
         </div>
 
         <div class="practice-workspace">
@@ -4604,47 +4650,61 @@ function renderPractice() {
             </div>
 
             <div class="practice-detail-card">
-              <div class="section-label">公开样例</div>
-              <ul class="testcase-list">
-                ${practice.tests
-                  .map(
-                    (test, index) =>
-                      `<li>样例 ${index + 1}：输入 = ${escapeHtml(JSON.stringify(test.input))}，期望输出 = ${escapeHtml(
-                        JSON.stringify(test.expected)
-                      )}</li>`
-                  )
-                  .join("")}
-              </ul>
-            </div>
-
-            <div class="practice-detail-card">
-              <div class="section-label">提示与隐藏测试</div>
-              <ul class="practice-hints">
-                ${practice.hints.map((hint) => `<li>${hint}</li>`).join("")}
-              </ul>
-              <div class="hidden-tests-note" style="margin-top:12px;">
-                本题共有 <strong>${practice.hiddenTests?.length || 0}</strong> 个隐藏测试，不会展示具体输入。
-                它们通常检查边界条件、空输入、重复值和极端规模。
+              <div class="section-label">测试结果</div>
+              <div class="practice-result-tabs">
+                <button class="tab-button${state.activeResultTabByPractice[practiceKey] === "result" ? " active" : ""}" type="button" data-result-tab="result">运行结果</button>
+                <button class="tab-button${state.activeResultTabByPractice[practiceKey] === "examples" ? " active" : ""}" type="button" data-result-tab="examples">公开样例</button>
+                <button class="tab-button${state.activeResultTabByPractice[practiceKey] === "tips" ? " active" : ""}" type="button" data-result-tab="tips">提示与隐藏测试</button>
+              </div>
+              <div class="practice-result-panel">
+                ${
+                  state.activeResultTabByPractice[practiceKey] === "examples"
+                    ? `<ul class="testcase-list">
+                        ${practice.tests
+                          .map(
+                            (test, index) =>
+                              `<li>样例 ${index + 1}：输入 = ${escapeHtml(JSON.stringify(test.input))}，期望输出 = ${escapeHtml(
+                                JSON.stringify(test.expected)
+                              )}</li>`
+                          )
+                          .join("")}
+                      </ul>`
+                    : state.activeResultTabByPractice[practiceKey] === "tips"
+                      ? `<ul class="practice-hints">
+                          ${practice.hints.map((hint) => `<li>${hint}</li>`).join("")}
+                        </ul>
+                        <div class="hidden-tests-note" style="margin-top:12px;">
+                          本题共有 <strong>${practice.hiddenTests?.length || 0}</strong> 个隐藏测试，不会展示具体输入。
+                          它们通常检查边界条件、空输入、重复值和极端规模。
+                        </div>`
+                      : result
+                        ? `<div class="practice-output ${result.passed ? "pass" : "fail"}">
+                            <strong>${result.passed ? "测试通过" : "测试未通过"}</strong>
+                            <div style="margin-top:8px;">${result.message}</div>
+                          </div>`
+                        : `<div class="practice-output">
+                            <strong>等待运行</strong>
+                            <div style="margin-top:8px;">先在左侧完成实现，再点击“提交运行”。运行结果会显示在这里。</div>
+                          </div>`
+                }
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      ${
-        result
-          ? `<div class="practice-output ${result.passed ? "pass" : "fail"}">
-              <strong>${result.passed ? "测试通过" : "测试未通过"}</strong>
-              <div style="margin-top:8px;">${result.message}</div>
-            </div>`
-          : ""
-      }
     </div>
   `;
 
   refs.practiceContainer.querySelectorAll("[data-practice-id]").forEach((button) => {
     button.addEventListener("click", () => {
       state.activePracticeIdByLesson[lesson.id] = button.dataset.practiceId;
+      saveLearningState();
+      renderPractice();
+    });
+  });
+  refs.practiceContainer.querySelectorAll("[data-result-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activeResultTabByPractice[practiceKey] = button.dataset.resultTab;
       saveLearningState();
       renderPractice();
     });

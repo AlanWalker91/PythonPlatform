@@ -927,6 +927,23 @@ code {
   gap: 16px;
 }
 
+.practice-details {
+  border-radius: 16px;
+}
+
+.practice-summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.practice-summary::-webkit-details-marker {
+  display: none;
+}
+
+.practice-details-body {
+  margin-top: 12px;
+}
+
 .practice-meta {
   display: flex;
   gap: 8px;
@@ -1008,6 +1025,17 @@ code {
 .practice-sidepanel {
   display: grid;
   gap: 16px;
+}
+
+.practice-result-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.practice-result-panel {
+  margin-top: 14px;
 }
 
 .practice-status-board {
