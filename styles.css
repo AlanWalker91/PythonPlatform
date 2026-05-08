@@ -982,6 +982,12 @@ code {
   line-height: 1.7;
 }
 
+.practice-editor.light {
+  background: #fffdf9;
+  color: #221b14;
+  border-color: rgba(66, 47, 21, 0.12);
+}
+
 .practice-actions {
   display: flex;
   gap: 10px;
@@ -990,13 +996,15 @@ code {
 
 .practice-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 14px minmax(320px, 420px);
+  gap: 0;
+  align-items: stretch;
 }
 
 .practice-editor-card {
   padding: 0;
   overflow: hidden;
+  min-width: 0;
 }
 
 .practice-editor-topbar {
@@ -1025,6 +1033,31 @@ code {
 .practice-sidepanel {
   display: grid;
   gap: 16px;
+  padding-left: 16px;
+  min-width: 0;
+}
+
+.practice-splitter {
+  position: relative;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.practice-splitter::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(17, 25, 39, 0.14);
+}
+
+.practice-splitter:hover::before,
+.practice-splitter.dragging::before {
+  background: rgba(245, 123, 34, 0.65);
 }
 
 .practice-result-tabs {
@@ -1036,6 +1069,28 @@ code {
 
 .practice-result-panel {
   margin-top: 14px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.practice-result-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.practice-result-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(17, 25, 39, 0.16);
+}
+
+.practice-result-panel::-webkit-scrollbar-track {
+  background: rgba(17, 25, 39, 0.05);
+}
+
+.editor-tool-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .practice-status-board {
@@ -1287,6 +1342,14 @@ code {
 
   .practice-workspace {
     grid-template-columns: 1fr;
+  }
+
+  .practice-splitter {
+    display: none;
+  }
+
+  .practice-sidepanel {
+    padding-left: 0;
   }
 }
 

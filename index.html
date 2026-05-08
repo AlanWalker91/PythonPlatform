@@ -55,11 +55,6 @@
       </section>
 
       <section class="sidebar-section">
-        <div class="sidebar-title">错题本</div>
-        <div class="tips" id="review-panel"></div>
-      </section>
-
-      <section class="sidebar-section">
         <div class="sidebar-title">最近提交</div>
         <div class="tips" id="submission-history"></div>
       </section>
@@ -155,29 +150,6 @@
         </div>
       </section>
 
-      <section class="card dashboard-card">
-        <div class="card-header compact">
-          <div>
-            <h3>提交详情页</h3>
-            <p>围绕当前章节查看练习状态、提交次数和最近一次成功提交的完整代码快照，保持页面信息集中不冗余。</p>
-          </div>
-        </div>
-        <div class="summary-grid">
-          <section class="summary-panel">
-            <div class="section-label">提交概览</div>
-            <div id="submission-summary"></div>
-          </section>
-          <section class="summary-panel">
-            <div class="section-label">当前章节</div>
-            <div id="submission-focus"></div>
-          </section>
-          <section class="summary-panel span-2">
-            <div class="section-label">提交详情</div>
-            <div id="submission-detail"></div>
-          </section>
-        </div>
-      </section>
-
       <div class="content-grid">
         <section class="lesson-column">
           <article class="card lesson-card">
@@ -260,6 +232,29 @@
               </div>
             </div>
             <div id="practice-container"></div>
+          </article>
+
+          <article class="card dashboard-card">
+            <div class="card-header compact">
+              <div>
+                <h3>提交详情页</h3>
+                <p>围绕当前章节查看练习状态、提交次数和最近一次成功提交的完整代码快照，形成“写题 -> 提交 -> 复盘”的连续学习流。</p>
+              </div>
+            </div>
+            <div class="summary-grid">
+              <section class="summary-panel">
+                <div class="section-label">提交概览</div>
+                <div id="submission-summary"></div>
+              </section>
+              <section class="summary-panel">
+                <div class="section-label">当前章节</div>
+                <div id="submission-focus"></div>
+              </section>
+              <section class="summary-panel span-2">
+                <div class="section-label">提交详情</div>
+                <div id="submission-detail"></div>
+              </section>
+            </div>
           </article>
         </section>
       </div>

@@ -3380,6 +3380,8 @@ const state = {
   activePracticeIdByLesson: {},
   activeResultTabByPractice: {},
   selectedSubmissionId: null,
+  practiceSplitRatio: 0.64,
+  editorTheme: "dark",
   visualTimer: null,
   visualState: {},
   practiceCode: {},
@@ -3579,6 +3581,8 @@ function loadLearningState() {
     state.practiceCode = parsed.practiceCode || {};
     state.activePracticeIdByLesson = parsed.activePracticeIdByLesson || {};
     state.activeResultTabByPractice = parsed.activeResultTabByPractice || {};
+    state.practiceSplitRatio = parsed.practiceSplitRatio || state.practiceSplitRatio;
+    state.editorTheme = parsed.editorTheme || state.editorTheme;
     state.currentLessonId = parsed.currentLessonId || state.learning.lastLessonId || state.currentLessonId;
   } catch (error) {
     console.warn("读取学习进度失败，将使用默认状态。", error);
@@ -3590,6 +3594,8 @@ function saveLearningState() {
     currentLessonId: state.currentLessonId,
     activePracticeIdByLesson: state.activePracticeIdByLesson,
     activeResultTabByPractice: state.activeResultTabByPractice,
+    practiceSplitRatio: state.practiceSplitRatio,
+    editorTheme: state.editorTheme,
     practiceCode: state.practiceCode,
     learning: state.learning
   };
@@ -3661,6 +3667,8 @@ function resetLearningProgress() {
   state.activePracticeIdByLesson = {};
   state.activeResultTabByPractice = {};
   state.selectedSubmissionId = null;
+  state.practiceSplitRatio = 0.64;
+  state.editorTheme = "dark";
   state.practiceCode = {};
   state.practiceResult = {};
   state.currentLessonId = lessons[0].id;
@@ -4319,6 +4327,9 @@ function renderLearningProfile() {
     </div>
   `;
 
+  if (!refs.reviewPanel) {
+    return;
+  }
   const wrongEntries = Object.entries(state.learning.wrongLessons);
   if (!wrongEntries.length) {
     refs.reviewPanel.innerHTML = "<p>当前没有待复习错题，继续保持。完成一章后记得再跑一遍实战题巩固。</p>";
@@ -4429,6 +4440,45 @@ function focusLessonPractice(lessonId) {
   window.setTimeout(() => {
     document.querySelector(".quiz-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 160);
+}
+
+function bindPracticeSplitter() {
+  const workspace = refs.practiceContainer.querySelector(".practice-workspace");
+  const splitter = refs.practiceContainer.querySelector(".practice-splitter");
+  if (!workspace || !splitter || window.innerWidth <= 840) return;
+
+  workspace.style.gridTemplateColumns = `${Math.round(state.practiceSplitRatio * 100)}fr 14px ${Math.round((1 - state.practiceSplitRatio) * 100)}fr`;
+
+  const onPointerMove = (event) => {
+    const rect = workspace.getBoundingClientRect();
+    const relativeX = event.clientX - rect.left;
+    const ratio = Math.min(0.78, Math.max(0.36, relativeX / rect.width));
+    state.practiceSplitRatio = ratio;
+    workspace.style.gridTemplateColumns = `${Math.round(ratio * 100)}fr 14px ${Math.round((1 - ratio) * 100)}fr`;
+  };
+
+  const onPointerUp = () => {
+    splitter.classList.remove("dragging");
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    saveLearningState();
+  };
+
+  splitter.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    splitter.classList.add("dragging");
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  });
+}
+
+async function copyPracticeCode(code) {
+  try {
+    await navigator.clipboard.writeText(code);
+    window.alert("代码已复制到剪贴板。");
+  } catch (error) {
+    window.alert("复制失败，请手动复制编辑器中的代码。");
+  }
 }
 
 function renderRoadmap() {
@@ -4627,6 +4677,10 @@ function renderPractice() {
                 <strong>代码编辑器</strong>
                 <div class="practice-toolbar-meta">像力扣一样，先在编辑区完成实现，再运行公开样例和隐藏测试。</div>
               </div>
+              <div class="editor-tool-row">
+                <button class="ghost-button small" id="copy-practice-btn" type="button">复制代码</button>
+                <button class="ghost-button small" id="toggle-theme-btn" type="button">${state.editorTheme === "dark" ? "浅色主题" : "深色主题"}</button>
+              </div>
               <div class="practice-actions">
                 <button class="primary-button" id="run-practice-btn" type="button">提交运行</button>
                 <button class="ghost-button" id="reset-practice-btn" type="button">重置代码</button>
@@ -4635,9 +4689,11 @@ function renderPractice() {
             </div>
             <div class="practice-editor-wrap">
               <label class="editor-label" for="practice-editor">实现函数：</label>
-              <textarea id="practice-editor" class="practice-editor" spellcheck="false">${escapeHtml(state.practiceCode[practiceKey])}</textarea>
+              <textarea id="practice-editor" class="practice-editor ${state.editorTheme === "light" ? "light" : ""}" spellcheck="false">${escapeHtml(state.practiceCode[practiceKey])}</textarea>
             </div>
           </div>
+
+          <div class="practice-splitter" aria-hidden="true" title="拖拽调整左右面板宽度"></div>
 
           <div class="practice-sidepanel">
             <div class="practice-detail-card">
@@ -4713,6 +4769,14 @@ function renderPractice() {
     state.practiceCode[practiceKey] = event.target.value;
     saveLearningState();
   });
+  document.getElementById("copy-practice-btn").addEventListener("click", () => {
+    copyPracticeCode(state.practiceCode[practiceKey]);
+  });
+  document.getElementById("toggle-theme-btn").addEventListener("click", () => {
+    state.editorTheme = state.editorTheme === "dark" ? "light" : "dark";
+    saveLearningState();
+    renderPractice();
+  });
   document.getElementById("run-practice-btn").addEventListener("click", () => runPractice(lesson.id, practice.id));
   document.getElementById("reset-practice-btn").addEventListener("click", () => {
     state.practiceCode[practiceKey] = practice.starterCode;
@@ -4724,6 +4788,7 @@ function renderPractice() {
     const next = lessons[currentIndex + 1] || lessons[0];
     setLesson(next.id);
   });
+  bindPracticeSplitter();
 }
 
 async function runPractice(lessonId, practiceId) {

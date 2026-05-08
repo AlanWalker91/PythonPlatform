@@ -33,7 +33,7 @@ def normalize(value):
             return normalized_items
         return sorted(normalized_items, key=lambda item: json.dumps(item, ensure_ascii=False, sort_keys=True))
     if isinstance(value, dict):
-        return {key: normalize(val) for key, val in sorted(value.items())}
+        return {{key: normalize(val) for key, val in sorted(value.items())}}
     return value
 
 visible_count = sum(1 for test in tests if not test.get("hidden"))
